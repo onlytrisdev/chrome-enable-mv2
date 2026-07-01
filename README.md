@@ -4,6 +4,13 @@
 
 ---
 
+### Demo Video / Video chạy thử
+
+https://github.com/onlytrisdev/chrome-enable-mv2/raw/main/export-1782903909911.mp4
+
+---
+
+
 <a name="tiếng-viet"></a>
 ## Tiếng Việt
 
