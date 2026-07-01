@@ -6,7 +6,7 @@
 
 ### Demo Video / Video chạy thử
 
-![](export-1782903909911.mp4)
+[👉 Nhấp vào đây để xem Video Demo / Click here to watch the Demo Video](export-1782903909911.mp4)
 
 ---
 
