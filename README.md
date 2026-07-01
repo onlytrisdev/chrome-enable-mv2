@@ -6,7 +6,7 @@
 
 ### Demo Video / Video chạy thử
 
-<video src="export-1782903909911.mp4" width="100%" controls></video>
+![](export-1782903909911.mp4)
 
 ---
 
