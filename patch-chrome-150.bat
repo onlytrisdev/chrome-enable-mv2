@@ -1,13 +1,15 @@
 <# :
 @echo off
+if "%~1"=="-Elevated" goto :AdminChecked
 net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo Requesting Administrator privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '-Elevated' -Verb RunAs"
     exit /b
 )
+:AdminChecked
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ScriptFolder = '%~dp0'; Get-Content -LiteralPath '%~f0' | Select-Object -Skip 14 | Out-String | Invoke-Expression"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ScriptFolder = '%~dp0'; Get-Content -LiteralPath '%~f0' | Select-Object -Skip 15 | Out-String | Invoke-Expression"
 pause
 exit /b
 #>
