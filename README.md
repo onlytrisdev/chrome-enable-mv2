@@ -1,0 +1,1 @@
+# Chrome Manifest V2 Enabler (Chrome MV2 Patcher)
