@@ -160,15 +160,23 @@ function doPatch([string]$dll) {
         $needle = $needle -as $wordType
         $val = ($feat[0] -eq '+') -as $wordType
         $featName = $feat.substring(1)
-        $i = $words.indexOf($needle)
-        while ($i -ge 0 -and !($words[$i + 1] -in 0,1)) {
+        $i = [Array]::IndexOf($words, $needle)
+        while ($i -ge 0) {
+            if ($i + 1 -ge $words.Length) {
+                $i = -1
+                break
+            }
+            $nextWord = $words[$i + 1]
+            $nextVal = if ($is64) { $nextWord -band 0xFFFFFFFFL } else { $nextWord }
+            if ($nextVal -in 0,1) { break }
             $i = [Array]::IndexOf($words, $needle, $i + 1)
         }
         if (!++$i) {
             Write-Host "Skipping $featName (not found or removed in this version)" -ForegroundColor Yellow
             continue
         }
-        if ($words[$i] -eq $val) {
+        $currentVal = if ($is64) { $words[$i] -band 0xFFFFFFFFL } else { $words[$i] }
+        if ($currentVal -eq $val) {
             Write-Host "Already patched $featName" -ForegroundColor DarkCyan
             continue
         }
