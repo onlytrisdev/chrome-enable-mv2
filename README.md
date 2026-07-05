@@ -10,64 +10,97 @@
 
 ---
 
-
 <a name="tiếng-viet"></a>
 ## Tiếng Việt
 
 Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin `chrome.dll` của trình duyệt Google Chrome nhằm kích hoạt lại hỗ trợ Manifest V2. Việc này giúp bạn tiếp tục cài đặt và sử dụng các tiện ích mở rộng sử dụng Manifest V2 (như uBlock Origin bản thường, thay vì bản Lite) trên các phiên bản Chrome mới (bao gồm Chrome 150+) mà không bị Google chặn.
 
 ### Tính năng nổi bật
-* Tự động tìm kiếm: Tự động nhận diện đường dẫn cài đặt của Google Chrome trên hệ thống Windows.
-* An toàn & Sao lưu: Tự động tạo bản sao lưu (chrome.dll.BAK) trước khi thực hiện bất kỳ chỉnh sửa nào.
-* Đơn giản: Chỉ với 1 lần chạy quyền Administrator.
-* Dễ dàng khôi phục: Đi kèm công cụ khôi phục lại trạng thái ban đầu chỉ trong vài giây.
+* **Quản lý dạng Menu**: Tích hợp 6 trong 1 (Vá Chrome, Tải/Cài uBlock Origin, Tải Extension bất kỳ từ Store, Khôi phục bản gốc, Chuyển ngôn ngữ) vào một tập lệnh duy nhất.
+* **Đa ngôn ngữ**: Mặc định hiển thị tiếng Anh, hỗ trợ chuyển đổi sang tiếng Việt linh hoạt qua menu.
+* **Tải & Giải nén mọi Extension từ Chrome Web Store**: Dán link Store hoặc nhập ID tiện ích để tự động tải và giải nén (bóc tách CRX Header tự động).
+* **Tự động bật Developer Mode**: Sửa cấu hình Preferences để kích hoạt Chế độ nhà phát triển cho tất cả các Profile Chrome.
+* **Sao chép đường dẫn tự động**: Copy đường dẫn thư mục giải nén vào Clipboard giúp cài đặt nhanh bằng 1 phím tắt.
+* **Độ tương thích cao**: Hoạt động tốt trên Windows cũ, cả bản cài đặt chính thức lẫn bản Chromium tùy biến/Portable.
+* **An sau & Sao lưu**: Tự động tạo bản sao lưu (`chrome.dll.BAK`) trước khi thực hiện bất kỳ chỉnh sửa nào.
 
 ### Danh sách tệp tin
-* patch-chrome-150.bat: Tập lệnh thực hiện vá (patch) chrome.dll để bật hỗ trợ Manifest V2.
-* restore-chrome.bat: Tập lệnh khôi phục chrome.dll nguyên bản từ tệp sao lưu.
+* [patch-chrome-150.bat](file:///e:/xampp/htdocs/patch-chrome-150.bat): Tập lệnh chính (chứa menu lựa chọn đa năng).
 
-### Hướng dẫn sử dụng
-1. Tải về hoặc sao chép nội dung tệp patch-chrome-150.bat và restore-chrome.bat.
-2. Đóng hoàn toàn trình duyệt Google Chrome (tập lệnh sẽ cố gắng tự động đóng các tiến trình Chrome đang chạy).
-3. Nhấp chuột phải vào tệp patch-chrome-150.bat và chọn Run as administrator (Chạy dưới quyền quản trị viên).
-4. Đợi chương trình chạy xong (khi màn hình hiện thông báo màu xanh ALL DONE. Please restart Google Chrome!).
-5. Khởi động lại Google Chrome và kiểm tra/cài đặt lại tiện ích Manifest V2 của bạn (ví dụ: uBlock Origin).
+### Hướng dẫn sử dụng `patch-chrome-150.bat`
+1. Nhấp chuột phải vào tệp **patch-chrome-150.bat** và chọn **Run as administrator** (Chạy dưới quyền quản trị viên).
+2. Lựa chọn ngôn ngữ: Mặc định là tiếng Anh. Nhấn **`5`** và **`Enter`** để chuyển sang tiếng Việt.
+3. Trình quản lý hiển thị menu với các lựa chọn:
 
-### Cách khôi phục bản gốc (Restore)
-Nếu bạn muốn quay về trạng thái mặc định của Chrome:
-1. Đóng hoàn toàn trình duyệt Google Chrome.
-2. Nhấp chuột phải vào tệp restore-chrome.bat và chọn Run as administrator.
-3. Tập lệnh sẽ tự động tìm các tệp sao lưu .BAK và khôi phục lại bản gốc.
+#### Lựa chọn 1: Vá Google Chrome (Manifest V2 Enabler)
+* Nhấn `1` và `Enter`. Tập lệnh tự động vá `chrome.dll` để mở khóa Manifest V2.
+
+#### Lựa chọn 2: Tải & Cài đặt uBlock Origin MV2 từ GitHub
+* Nhấn `2` và `Enter`. Tập lệnh sẽ tải bản uBlock Origin MV2 mới nhất từ GitHub releases, tự động giải nén, bật Developer mode cho tất cả các Profile và copy đường dẫn giải nén vào clipboard.
+
+#### Lựa chọn 3: Tải & Giải nén Extension bất kỳ từ Chrome Web Store
+* Nhấn `3` và `Enter`. Dán đường dẫn Chrome Web Store của tiện ích mở rộng (hoặc nhập ID của tiện ích gồm 32 ký tự). Tập lệnh sẽ tải tệp `.crx`, bóc tách header của CRX2/CRX3 để giải nén thành mã nguồn và copy đường dẫn vào clipboard.
+
+#### Lựa chọn 4: Khôi phục Google Chrome về nguyên bản
+* Nhấn `4` và `Enter`. Tập lệnh khôi phục tệp `chrome.dll` ban đầu từ tệp `.BAK`.
+
+#### Lựa chọn 5: Chuyển đổi ngôn ngữ
+* Nhấn `5` và `Enter` để đổi giữa tiếng Anh (English) và tiếng Việt.
+
+---
+
+### Các bước nạp Tiện ích đã giải nén vào Chrome:
+1. Mở trình duyệt Google Chrome và truy cập địa chỉ: `chrome://extensions`
+2. Bật công tắc **Chế độ dành cho nhà phát triển** (Developer mode) ở góc trên bên phải.
+3. Nhấp vào nút **Tải tiện ích đã giải nén** (Load unpacked) ở góc trên bên trái.
+4. Hộp thoại chọn thư mục hiện ra, bạn chỉ cần nhấn **`Ctrl + V`** và nhấn **`Enter`** (để dán đường dẫn đã được script copy tự động) -> Tiện ích sẽ được nạp vĩnh viễn!
 
 ---
 
 <a name="english"></a>
 ## English
 
-This project provides utility scripts to patch Google Chrome's chrome.dll to re-enable Manifest V2 support. This allows you to continue running legacy MV2 extensions (such as uBlock Origin) on newer Google Chrome versions (including Chrome 150+) where they are disabled or blocked by default.
+This project provides a unified interactive tool to patch Google Chrome's `chrome.dll` to re-enable Manifest V2 support, download extensions from the Chrome Web Store or GitHub, and configure them automatically.
 
-### Features
-* Auto-Detection: Automatically locates the installation paths of Google Chrome on Windows.
-* Safety First: Automatically creates a backup copy (chrome.dll.BAK) of the original DLL before patching.
-* Effortless: One-click execution with Administrator privileges.
-* Easy Restoration: Includes a dedicated script to restore the original DLL in seconds.
+### Key Features
+* **Menu-Driven**: All-in-one script (Patch, Download/Install uBlock, Download Store CRX, Restore, Language Switcher) inside a single bat file.
+* **Multi-Language Support**: English by default, with Vietnamese translation toggle.
+* **Download & Unpack Any Extension from Web Store**: Paste a Store link or ID to download the `.crx` file, strip the CRX2/CRX3 header, and extract it as unpacked source code.
+* **Auto Developer Mode Toggle**: Configures Chrome's `Preferences` JSON files to enable Developer Mode for all profiles automatically.
+* **Auto Clipboard Copy**: Copies the unpacked folder path to your clipboard for quick installation.
+* **High Compatibility**: Tested across various Windows and PowerShell versions, supporting both official Chrome and custom Chromium/Portable builds.
+* **Safety First**: Automatically creates a backup copy (`chrome.dll.BAK`) before patching.
 
 ### Files
-* patch-chrome-150.bat: The script to patch chrome.dll and enable Manifest V2.
-* restore-chrome.bat: The script to restore the original backup DLL.
+* [patch-chrome-150.bat](file:///e:/xampp/htdocs/patch-chrome-150.bat): The main script with the interactive menu.
 
-### How to Use
-1. Download or copy the contents of patch-chrome-150.bat and restore-chrome.bat.
-2. Close all running Google Chrome windows (the script will also attempt to kill chrome processes to prevent file locking).
-3. Right-click on patch-chrome-150.bat and select Run as administrator.
-4. Wait for the process to complete (you will see the green message ALL DONE. Please restart Google Chrome!).
-5. Relaunch Google Chrome and re-install/enable your Manifest V2 extensions (e.g., uBlock Origin).
+### How to Use `patch-chrome-150.bat`
+1. Right-click on **patch-chrome-150.bat** and select **Run as administrator**.
+2. Language Switch: The script starts in English by default. Press **`5`** and **`Enter`** to switch to Vietnamese.
+3. Select one of the menu options:
 
-### How to Restore
-To revert changes back to the original:
-1. Close Google Chrome.
-2. Right-click on restore-chrome.bat and select Run as administrator.
-3. The script will automatically restore the original chrome.dll from the .BAK file.
+#### Option 1: Patch Google Chrome
+* Press `1` and `Enter` to patch `chrome.dll` and enable Manifest V2.
+
+#### Option 2: Download & Install uBlock Origin MV2
+* Press `2` and `Enter`. The script will download the latest MV2 zip release from GitHub, extract it, enable Developer Mode, and copy the folder path to your clipboard.
+
+#### Option 3: Download & Extract Extension from Chrome Web Store
+* Press `3` and `Enter`. Paste the Chrome Web Store extension URL or enter the 32-character ID. The script will download the `.crx` package, strip the binary signature header, extract it, and copy the folder path to your clipboard.
+
+#### Option 4: Restore Google Chrome
+* Press `4` and `Enter` to restore the original `chrome.dll` from backup.
+
+#### Option 5: Switch Language
+* Press `5` and `Enter` to toggle between English and Vietnamese.
+
+---
+
+### How to Load Unpacked Extensions into Chrome:
+1. Open Google Chrome and go to: `chrome://extensions`
+2. Enable the **Developer mode** toggle in the top-right corner.
+3. Click the **Load unpacked** button in the top-left corner.
+4. When the folder picker dialog appears, press **`Ctrl + V`** to paste the path copied by the script, then press **`Enter`** to load the extension.
 
 ---
 
