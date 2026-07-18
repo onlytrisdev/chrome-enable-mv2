@@ -25,10 +25,11 @@ Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin
 * **An sau & Sao lưu**: Tự động tạo bản sao lưu (`chrome.dll.BAK`) trước khi thực hiện bất kỳ chỉnh sửa nào.
 
 ### Danh sách tệp tin
-* [patch-chrome-150.bat](file:///e:/xampp/htdocs/patch-chrome-150.bat): Tập lệnh chính (chứa menu lựa chọn đa năng).
+* [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Tập lệnh dành cho Chrome v150 trở xuống.
+* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Tập lệnh dành cho Chrome Beta v151 (chứa giải pháp vá chính sách và logic nạp MV2 mới).
 
-### Hướng dẫn sử dụng `patch-chrome-150.bat`
-1. Nhấp chuột phải vào tệp **patch-chrome-150.bat** và chọn **Run as administrator** (Chạy dưới quyền quản trị viên).
+### Hướng dẫn sử dụng `patch-chrome-151.bat` / `patch-chrome-150.bat`
+1. Nhấp chuột phải vào tệp **patch-chrome-151.bat** (hoặc **patch-chrome-150.bat** tùy thuộc phiên bản Chrome của bạn) và chọn **Run as administrator** (Chạy dưới quyền quản trị viên).
 2. Lựa chọn ngôn ngữ: Mặc định là tiếng Anh. Nhấn **`5`** và **`Enter`** để chuyển sang tiếng Việt.
 3. Trình quản lý hiển thị menu với các lựa chọn:
 
@@ -72,10 +73,11 @@ This project provides a unified interactive tool to patch Google Chrome's `chrom
 * **Safety First**: Automatically creates a backup copy (`chrome.dll.BAK`) before patching.
 
 ### Files
-* [patch-chrome-150.bat](file:///e:/xampp/htdocs/patch-chrome-150.bat): The main script with the interactive menu.
+* [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Patch script for Chrome v150 and below.
+* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Patch script for Chrome Beta v151.
 
-### How to Use `patch-chrome-150.bat`
-1. Right-click on **patch-chrome-150.bat** and select **Run as administrator**.
+### How to Use `patch-chrome-151.bat` / `patch-chrome-150.bat`
+1. Right-click on **patch-chrome-151.bat** (or **patch-chrome-150.bat** depending on your Chrome version) and select **Run as administrator**.
 2. Language Switch: The script starts in English by default. Press **`5`** and **`Enter`** to switch to Vietnamese.
 3. Select one of the menu options:
 
