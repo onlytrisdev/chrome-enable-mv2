@@ -193,16 +193,10 @@ function doPatch([string]$dll) {
         $bytes[0x0E7F152C] -eq 0x8C -and $bytes[0x0E7F152D] -eq 0x00 -and 
         $bytes[0x0E7F152E] -eq 0x00 -and $bytes[0x0E7F152F] -eq 0x00) {
         Write-Host ($Msg[$Lang].PatchingFeature -f "MaybeReEnableExtension Bypass") -ForegroundColor Cyan
-        $bytes[0x0E7F1528] = 0x90
-        $bytes[0x0E7F1529] = 0x90
-        $bytes[0x0E7F152A] = 0xE9
-        $bytes[0x0E7F152B] = 0x8D
-        $bytes[0x0E7F152C] = 0x00
-        $bytes[0x0E7F152D] = 0x00
-        $bytes[0x0E7F152E] = 0x00
-        $bytes[0x0E7F152F] = 0x90
+        $bytes[0x0E7F1528] = 0x31 # xor
+        $bytes[0x0E7F1529] = 0xC0 # eax, eax
         $modified = $true
-    } elseif ($bytes[0x0E7F152A] -eq 0xE9 -and $bytes[0x0E7F152B] -eq 0x8D) {
+    } elseif ($bytes[0x0E7F1528] -eq 0x31 -and $bytes[0x0E7F1529] -eq 0xC0) {
         Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "MaybeReEnableExtension Bypass") -ForegroundColor DarkCyan
     } else {
         Write-Host ($Msg[$Lang].PatchSkipping -f "MaybeReEnableExtension Bypass") -ForegroundColor Yellow
