@@ -13,7 +13,7 @@
 <a name="tiếng-viet"></a>
 ## Tiếng Việt
 
-Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin `chrome.dll` của trình duyệt Google Chrome nhằm kích hoạt lại hỗ trợ Manifest V2. Việc này giúp bạn tiếp tục cài đặt và sử dụng các tiện ích mở rộng sử dụng Manifest V2 (như uBlock Origin bản thường, thay vì bản Lite) trên các phiên bản Chrome mới (bao gồm Chrome 150+) mà không bị Google chặn.
+Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin `chrome.dll` của trình duyệt Google Chrome nhằm kích hoạt lại hỗ trợ Manifest V2. Việc này giúp bạn tiếp tục cài đặt và sử dụng các tiện ích mở rộng sử dụng Manifest V2 (như uBlock Origin bản thường, thay vì bản Lite) trên các phiên bản Chrome mới (bao gồm Chrome 150/151+) mà không bị Google chặn.
 
 ### Tính năng nổi bật
 * **Quản lý dạng Menu**: Tích hợp 6 trong 1 (Vá Chrome, Tải/Cài uBlock Origin, Tải Extension bất kỳ từ Store, Khôi phục bản gốc, Chuyển ngôn ngữ) vào một tập lệnh duy nhất.
@@ -26,7 +26,7 @@ Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin
 
 ### Danh sách tệp tin
 * [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Tập lệnh dành cho Chrome v150 trở xuống.
-* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Tập lệnh dành cho Chrome Beta v151 (chứa giải pháp vá chính sách và logic nạp MV2 mới).
+* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Tập lệnh dành cho Chrome Beta v151 trở lên (chứa giải pháp vá chính sách và logic nạp MV2 mới).
 
 ### Hướng dẫn sử dụng `patch-chrome-151.bat` / `patch-chrome-150.bat`
 1. Nhấp chuột phải vào tệp **patch-chrome-151.bat** (hoặc **patch-chrome-150.bat** tùy thuộc phiên bản Chrome của bạn) và chọn **Run as administrator** (Chạy dưới quyền quản trị viên).
@@ -74,7 +74,7 @@ This project provides a unified interactive tool to patch Google Chrome's `chrom
 
 ### Files
 * [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Patch script for Chrome v150 and below.
-* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Patch script for Chrome Beta v151.
+* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Patch script for Chrome Beta v151+.
 
 ### How to Use `patch-chrome-151.bat` / `patch-chrome-150.bat`
 1. Right-click on **patch-chrome-151.bat** (or **patch-chrome-150.bat** depending on your Chrome version) and select **Run as administrator**.
