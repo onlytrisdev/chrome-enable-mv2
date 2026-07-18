@@ -188,8 +188,8 @@ function doPatch([string]$dll) {
 
     # Helper function: Check if already patched and patch it
     function Patch-Signature([byte[]]$bytes, [byte[]]$pattern, [string]$mask, [int]$expectedAddr, [int]$patchOffset, [byte[]]$patchBytes, [string]$name) {
-        # Scan range of -128KB to +128KB around expectedAddr to be fast and safe
-        $scanRadius = 0x20000
+        # Scan range of -1KB to +1KB around expectedAddr to be fast and safe
+        $scanRadius = 0x400
         $start = [Math]::Max(0, $expectedAddr - $scanRadius)
         $end = [Math]::Min($bytes.Length, $expectedAddr + $scanRadius)
         
@@ -274,7 +274,7 @@ function doPatch([string]$dll) {
     $skippedNeutralizedCount = 0
     
     foreach ($cfg in $constantConfigs) {
-        $scanRadius = 0x20000
+        $scanRadius = 0x400
         $start = [Math]::Max(0, $cfg.Expected - $scanRadius)
         $end = [Math]::Min($bytes.Length, $cfg.Expected + $scanRadius)
         $pos = Find-Pattern -bytes $bytes -pattern $cfg.Pattern -mask $cfg.Mask -start $start -end $end
@@ -313,7 +313,7 @@ function doPatch([string]$dll) {
     $skippedBlockedCount = 0
 
     foreach ($cfg in $writeConfigs) {
-        $scanRadius = 0x20000
+        $scanRadius = 0x400
         $start = [Math]::Max(0, $cfg.Expected - $scanRadius)
         $end = [Math]::Min($bytes.Length, $cfg.Expected + $scanRadius)
         $pos = Find-Pattern -bytes $bytes -pattern $cfg.Pattern -mask $cfg.Mask -start $start -end $end
