@@ -12,12 +12,9 @@ if %errorLevel% neq 0 (
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ScriptFolder = '%~dp0'; Get-Content -LiteralPath '%~f0' -Encoding UTF8 | Select-Object -Skip 14 | Out-String | Invoke-Expression"
 exit /b
 #>
-#OnlyTris_Dev - Nguyễn Trí & AI
-# Chrome Manifest V2 Manager for Chrome Beta v151
+# OnlyTris_Dev
 
-# ----------------- LOCALIZATION SETTINGS -----------------
-
-$Lang = "vi"  # Default language is Vietnamese
+$Lang = "vi"
 
 $Msg = @{
     "en" = @{
@@ -39,7 +36,7 @@ $Msg = @{
         PatchFoundDll = "Found chrome.dll at: {0}"
         PatchAccessDenied = "[ERROR] Access Denied: You must run this script as Administrator to patch this Chrome installation ({0})."
         PatchOpenError = "[ERROR] Could not open chrome.dll: {0}"
-        PatchReading = "`tREADING Chrome.dll..."
+        PatchReading = "Reading Chrome.dll..."
         PatchAlreadyPatched = "Already patched {0}"
         PatchBackupFound = "Found an existing backup of the original dll."
         PatchBackupCreating = "Backing up the original dll..."
@@ -102,7 +99,7 @@ $Msg = @{
         PatchFoundDll = "Tìm thấy tệp chrome.dll tại: {0}"
         PatchAccessDenied = "[ERROR] Quyền truy cập bị từ chối: Bạn phải chạy script này với tư cách Quản trị viên để vá Chrome ({0})."
         PatchOpenError = "[ERROR] Không thể mở chrome.dll: {0}"
-        PatchReading = "`tĐang đọc file Chrome.dll..."
+        PatchReading = "Đang đọc file Chrome.dll..."
         PatchAlreadyPatched = "Đã được vá sẵn tính năng: {0}"
         PatchBackupFound = "Tìm thấy tệp sao lưu dll gốc đã có sẵn."
         PatchBackupCreating = "Đang sao lưu tệp dll gốc..."
@@ -148,8 +145,6 @@ $Msg = @{
     }
 }
 
-# ----------------- GLOBALS & HELPERS -----------------
-
 function doPatch([string]$dll) {
     Write-Host ($Msg[$Lang].PatchFoundDll -f $dll) -ForegroundColor Yellow
 
@@ -157,7 +152,6 @@ function doPatch([string]$dll) {
         return
     }
 
-    # Backup the original dll first if not exists
     if (Test-Path -LiteralPath "$dll.BAK") {
         Write-Host $Msg[$Lang].PatchBackupFound -ForegroundColor DarkGray
     } else {
@@ -170,16 +164,12 @@ function doPatch([string]$dll) {
         }
     }
 
-    # Read bytes
     $bytes = [System.IO.File]::ReadAllBytes($dll)
     $modified = $false
 
-    # Patch 1: UserMayLoad bypass (jg -> jge)
-    # Offset: 0x0157BE6A
-    # Expected bytes: 7F 78
     if ($bytes[0x0157BE6A] -eq 0x7F -and $bytes[0x0157BE6B] -eq 0x78) {
         Write-Host ($Msg[$Lang].PatchingFeature -f "UserMayLoad Block Policy Bypass") -ForegroundColor Cyan
-        $bytes[0x0157BE6A] = 0x7D # jge
+        $bytes[0x0157BE6A] = 0x7D
         $modified = $true
     } elseif ($bytes[0x0157BE6A] -eq 0x7D -and $bytes[0x0157BE6B] -eq 0x78) {
         Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "UserMayLoad Block Policy Bypass") -ForegroundColor DarkCyan
@@ -187,13 +177,10 @@ function doPatch([string]$dll) {
         Write-Host ($Msg[$Lang].PatchSkipping -f "UserMayLoad Block Policy Bypass") -ForegroundColor Yellow
     }
 
-    # Patch 2: Disable reason loop bypass (jnz -> NOP NOP)
-    # Offset: 0x0E8798FF
-    # Expected bytes: 75 4F
     if ($bytes[0x0E8798FF] -eq 0x75 -and $bytes[0x0E879900] -eq 0x4F) {
         Write-Host ($Msg[$Lang].PatchingFeature -f "Auto-Disable Loop Bypass") -ForegroundColor Cyan
-        $bytes[0x0E8798FF] = 0x90 # nop
-        $bytes[0x0E879900] = 0x90 # nop
+        $bytes[0x0E8798FF] = 0x90
+        $bytes[0x0E879900] = 0x90
         $modified = $true
     } elseif ($bytes[0x0E8798FF] -eq 0x90 -and $bytes[0x0E879900] -eq 0x90) {
         Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "Auto-Disable Loop Bypass") -ForegroundColor DarkCyan
@@ -201,22 +188,19 @@ function doPatch([string]$dll) {
         Write-Host ($Msg[$Lang].PatchSkipping -f "Auto-Disable Loop Bypass") -ForegroundColor Yellow
     }
 
-    # Patch 3: MaybeReEnableExtension bypass (test eax, eax; jz -> NOP NOP jmp near)
-    # Offset: 0x0E7F1528
-    # Expected bytes: 85 C0 0F 84 8C 00 00 00
     if ($bytes[0x0E7F1528] -eq 0x85 -and $bytes[0x0E7F1529] -eq 0xC0 -and 
         $bytes[0x0E7F152A] -eq 0x0F -and $bytes[0x0E7F152B] -eq 0x84 -and 
         $bytes[0x0E7F152C] -eq 0x8C -and $bytes[0x0E7F152D] -eq 0x00 -and 
         $bytes[0x0E7F152E] -eq 0x00 -and $bytes[0x0E7F152F] -eq 0x00) {
         Write-Host ($Msg[$Lang].PatchingFeature -f "MaybeReEnableExtension Bypass") -ForegroundColor Cyan
-        $bytes[0x0E7F1528] = 0x90 # nop
-        $bytes[0x0E7F1529] = 0x90 # nop
-        $bytes[0x0E7F152A] = 0xE9 # jmp near
+        $bytes[0x0E7F1528] = 0x90
+        $bytes[0x0E7F1529] = 0x90
+        $bytes[0x0E7F152A] = 0xE9
         $bytes[0x0E7F152B] = 0x8D
-        $bytes[0x0E7F152C] = 0x00;
-        $bytes[0x0E7F152D] = 0x00;
-        $bytes[0x0E7F152E] = 0x00;
-        $bytes[0x0E7F152F] = 0x90 # nop
+        $bytes[0x0E7F152C] = 0x00
+        $bytes[0x0E7F152D] = 0x00
+        $bytes[0x0E7F152E] = 0x00
+        $bytes[0x0E7F152F] = 0x90
         $modified = $true
     } elseif ($bytes[0x0E7F152A] -eq 0xE9 -and $bytes[0x0E7F152B] -eq 0x8D) {
         Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "MaybeReEnableExtension Bypass") -ForegroundColor DarkCyan
@@ -224,12 +208,9 @@ function doPatch([string]$dll) {
         Write-Host ($Msg[$Lang].PatchSkipping -f "MaybeReEnableExtension Bypass") -ForegroundColor Yellow
     }
 
-    # Patch 4: MaybeReEnableExtension policy check bypass (jg -> jge)
-    # Offset: 0x08E7AEFA
-    # Expected bytes: 7F 3B
     if ($bytes[0x08E7AEFA] -eq 0x7F -and $bytes[0x08E7AEFB] -eq 0x3B) {
         Write-Host ($Msg[$Lang].PatchingFeature -f "Re-Enable Policy Bypass") -ForegroundColor Cyan
-        $bytes[0x08E7AEFA] = 0x7D # jge
+        $bytes[0x08E7AEFA] = 0x7D
         $modified = $true
     } elseif ($bytes[0x08E7AEFA] -eq 0x7D -and $bytes[0x08E7AEFB] -eq 0x3B) {
         Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "Re-Enable Policy Bypass") -ForegroundColor DarkCyan
@@ -237,7 +218,6 @@ function doPatch([string]$dll) {
         Write-Host ($Msg[$Lang].PatchSkipping -f "Re-Enable Policy Bypass") -ForegroundColor Yellow
     }
 
-    # Write bytes back
     if ($modified) {
         try {
             [System.IO.File]::WriteAllBytes($dll, $bytes)
@@ -265,14 +245,11 @@ function Get-ChromeDirs {
             $searchDirs += Split-Path -Parent $p 
         }
     }
-    # Chrome Beta specific paths (We only target Chrome Beta 151)
     $searchDirs += "C:\Program Files\Google\Chrome Beta\Application"
     $searchDirs += "$env:LocalAppData\Google\Chrome Beta\Application"
     
     return $searchDirs | Select-Object -Unique | Where-Object { $_ -and (Test-Path -Path $_ -PathType Container) }
 }
-
-# ----------------- OPTION 1: PATCH CHROME -----------------
 
 function Option-PatchChrome {
     Write-Host "`n$($Msg[$Lang].PatchTitle)" -ForegroundColor Yellow
@@ -284,7 +261,6 @@ function Option-PatchChrome {
     $dllsToPatch = @()
     foreach ($dir in $chromeDirs) {
         $pathsToCheck = @()
-        # Filter for Chrome Beta v151.x only
         $subDirs = Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^151\.' }
         foreach ($sd in $subDirs) {
             $pathsToCheck += $sd.FullName
@@ -293,7 +269,6 @@ function Option-PatchChrome {
         foreach ($path in ($pathsToCheck | Select-Object -Unique)) {
             $dllPath = Join-Path $path "chrome.dll"
             if (Test-Path -LiteralPath $dllPath) {
-                # Read the folder's name to ensure we only patch 151
                 $parentFolderName = Split-Path -Leaf $path
                 if ($parentFolderName -match '^151\.') {
                     $dllsToPatch += $dllPath
@@ -319,8 +294,6 @@ function Option-PatchChrome {
     Read-Host $Msg[$Lang].EnterToReturn
 }
 
-# ----------------- OPTION 2: DOWNLOAD & INSTALL UBLOCK -----------------
-
 function Option-InstalluBlock {
     Write-Host "`n$($Msg[$Lang].UBlockTitle)" -ForegroundColor Yellow
     
@@ -328,7 +301,6 @@ function Option-InstalluBlock {
     $downloadUrl = $null
     $fileName = $null
 
-    # 1. Fetch latest release information
     Write-Host $Msg[$Lang].CheckingUBlock -ForegroundColor DarkGray
     try {
         $apiURL = "https://api.github.com/repos/gorhill/uBlock/releases/latest"
@@ -492,8 +464,6 @@ function Option-InstalluBlock {
     Read-Host $Msg[$Lang].EnterToReturn
 }
 
-# ----------------- OPTION 3: RESTORE CHROME -----------------
-
 function Option-RestoreChrome {
     Write-Host "`n$($Msg[$Lang].RestoreTitle)" -ForegroundColor Yellow
     Write-Host $Msg[$Lang].ClosingChrome -ForegroundColor Yellow
@@ -540,13 +510,11 @@ function Option-RestoreChrome {
     Read-Host $Msg[$Lang].EnterToReturn
 }
 
-# ----------------- MENU LOOP -----------------
-
 do {
     Clear-Host
     Write-Host "==========================================================" -ForegroundColor Cyan
     Write-Host $Msg[$Lang].Title -ForegroundColor Cyan
-    Write-Host "               OnlyTris_Dev & AI       " -ForegroundColor Cyan
+    Write-Host "                       OnlyTris_Dev" -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Cyan
     Write-Host $Msg[$Lang].Opt1 -ForegroundColor White
     Write-Host $Msg[$Lang].Opt2 -ForegroundColor White
