@@ -167,49 +167,182 @@ function doPatch([string]$dll) {
     $bytes = [System.IO.File]::ReadAllBytes($dll)
     $modified = $false
 
-    if ($bytes[0x0157BE6A] -eq 0x7F -and $bytes[0x0157BE6B] -eq 0x78) {
-        Write-Host ($Msg[$Lang].PatchingFeature -f "UserMayLoad Block Policy Bypass") -ForegroundColor Cyan
-        $bytes[0x0157BE6A] = 0x7D
-        $modified = $true
-    } elseif ($bytes[0x0157BE6A] -eq 0x7D -and $bytes[0x0157BE6B] -eq 0x78) {
-        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "UserMayLoad Block Policy Bypass") -ForegroundColor DarkCyan
-    } else {
-        Write-Host ($Msg[$Lang].PatchSkipping -f "UserMayLoad Block Policy Bypass") -ForegroundColor Yellow
+    # Helper function: Signature/Pattern scanning within a range
+    function Find-Pattern([byte[]]$bytes, [byte[]]$pattern, [string]$mask, [int]$start, [int]$end) {
+        $patternLen = $pattern.Length
+        $limit = $end - $patternLen
+        for ($i = $start; $i -le $limit; $i++) {
+            $match = $true
+            for ($j = 0; $j -lt $patternLen; $j++) {
+                if ($mask[$j] -eq 'x' -and $bytes[$i + $j] -ne $pattern[$j]) {
+                    $match = $false
+                    break
+                }
+            }
+            if ($match) {
+                return $i
+            }
+        }
+        return -1
     }
 
-    if ($bytes[0x0E8798FF] -eq 0x75 -and $bytes[0x0E879900] -eq 0x4F) {
-        Write-Host ($Msg[$Lang].PatchingFeature -f "Auto-Disable Loop Bypass") -ForegroundColor Cyan
-        $bytes[0x0E8798FF] = 0x90
-        $bytes[0x0E879900] = 0x90
-        $modified = $true
-    } elseif ($bytes[0x0E8798FF] -eq 0x90 -and $bytes[0x0E879900] -eq 0x90) {
-        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "Auto-Disable Loop Bypass") -ForegroundColor DarkCyan
-    } else {
-        Write-Host ($Msg[$Lang].PatchSkipping -f "Auto-Disable Loop Bypass") -ForegroundColor Yellow
+    # Helper function: Check if already patched and patch it
+    function Patch-Signature([byte[]]$bytes, [byte[]]$pattern, [string]$mask, [int]$expectedAddr, [int]$patchOffset, [byte[]]$patchBytes, [string]$name) {
+        # Scan range of -128KB to +128KB around expectedAddr to be fast and safe
+        $scanRadius = 0x20000
+        $start = [Math]::Max(0, $expectedAddr - $scanRadius)
+        $end = [Math]::Min($bytes.Length, $expectedAddr + $scanRadius)
+        
+        $pos = Find-Pattern -bytes $bytes -pattern $pattern -mask $mask -start $start -end $end
+        if ($pos -eq -1) {
+            Write-Host ($Msg[$Lang].PatchSkipping -f $name) -ForegroundColor Yellow
+            return $false
+        }
+        
+        $targetPos = $pos + $patchOffset
+        $alreadyPatched = $true
+        for ($i = 0; $i -lt $patchBytes.Length; $i++) {
+            if ($bytes[$targetPos + $i] -ne $patchBytes[$i]) {
+                $alreadyPatched = $false
+            }
+        }
+        
+        if ($alreadyPatched) {
+            Write-Host ($Msg[$Lang].PatchAlreadyPatched -f $name) -ForegroundColor DarkCyan
+            return $false
+        }
+        
+        Write-Host ($Msg[$Lang].PatchingFeature -f $name) -ForegroundColor Cyan
+        for ($i = 0; $i -lt $patchBytes.Length; $i++) {
+            $bytes[$targetPos + $i] = $patchBytes[$i]
+        }
+        return $true
     }
 
-    if ($bytes[0x0E7F1528] -eq 0x85 -and $bytes[0x0E7F1529] -eq 0xC0 -and 
-        $bytes[0x0E7F152A] -eq 0x0F -and $bytes[0x0E7F152B] -eq 0x84 -and 
-        $bytes[0x0E7F152C] -eq 0x8C -and $bytes[0x0E7F152D] -eq 0x00 -and 
-        $bytes[0x0E7F152E] -eq 0x00 -and $bytes[0x0E7F152F] -eq 0x00) {
-        Write-Host ($Msg[$Lang].PatchingFeature -f "MaybeReEnableExtension Bypass") -ForegroundColor Cyan
-        $bytes[0x0E7F1528] = 0x31 # xor
-        $bytes[0x0E7F1529] = 0xC0 # eax, eax
+    # Patch 1: UserMayLoad Block Policy Bypass
+    $p1Pattern = @(0x8B, 0x41, 0x68, 0x83, 0xFA, 0x02, 0x7F, 0x78)
+    if (Patch-Signature -bytes $bytes -pattern $p1Pattern -mask "xxxxxxxx" -expectedAddr 0x0157BE6A -patchOffset 6 -patchBytes @(0x7D) -name "UserMayLoad Block Policy Bypass") {
         $modified = $true
-    } elseif ($bytes[0x0E7F1528] -eq 0x31 -and $bytes[0x0E7F1529] -eq 0xC0) {
-        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "MaybeReEnableExtension Bypass") -ForegroundColor DarkCyan
-    } else {
-        Write-Host ($Msg[$Lang].PatchSkipping -f "MaybeReEnableExtension Bypass") -ForegroundColor Yellow
     }
 
-    if ($bytes[0x08E7AEFA] -eq 0x7F -and $bytes[0x08E7AEFB] -eq 0x3B) {
-        Write-Host ($Msg[$Lang].PatchingFeature -f "Re-Enable Policy Bypass") -ForegroundColor Cyan
-        $bytes[0x08E7AEFA] = 0x7D
+    # Patch 2: Auto-Disable Loop Bypass
+    $p2Pattern = @(0xE8, 0x00, 0x00, 0x00, 0x00, 0x84, 0xC0, 0x75, 0x4F, 0x48, 0x8B, 0x0E)
+    if (Patch-Signature -bytes $bytes -pattern $p2Pattern -mask "x????xxxxxxx" -expectedAddr 0x0E8798FF -patchOffset 7 -patchBytes @(0x90, 0x90) -name "Auto-Disable Loop Bypass") {
         $modified = $true
-    } elseif ($bytes[0x08E7AEFA] -eq 0x7D -and $bytes[0x08E7AEFB] -eq 0x3B) {
-        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "Re-Enable Policy Bypass") -ForegroundColor DarkCyan
+    }
+
+    # Patch 3: MaybeReEnableExtension check bypass
+    $p3Pattern = @(0xFF, 0x15, 0x00, 0x00, 0x00, 0x00, 0x85, 0xC0, 0x0F, 0x84)
+    if (Patch-Signature -bytes $bytes -pattern $p3Pattern -mask "xx????xxxx" -expectedAddr 0x0E7F1528 -patchOffset 6 -patchBytes @(0x31, 0xC0) -name "MaybeReEnableExtension Bypass") {
+        $modified = $true
+    }
+
+    # Patch 4: Re-Enable Policy Bypass
+    $p4Pattern = @(0x8B, 0x41, 0x68, 0x83, 0xFA, 0x02, 0x7F, 0x3B, 0x8B, 0x49, 0x30)
+    if (Patch-Signature -bytes $bytes -pattern $p4Pattern -mask "xxxxxxxxxxx" -expectedAddr 0x08E7AEFA -patchOffset 6 -patchBytes @(0x7D) -name "Re-Enable Policy Bypass") {
+        $modified = $true
+    }
+
+    # Patch 5: UserMayModifySettings success bypass
+    $p5Pattern = @(0xFF, 0x15, 0x00, 0x00, 0x00, 0x00, 0x84, 0xC0, 0x75, 0x11, 0x48, 0xB8)
+    if (Patch-Signature -bytes $bytes -pattern $p5Pattern -mask "xx????xxxxxx" -expectedAddr 0x0EC48EC0 -patchOffset 8 -patchBytes @(0xEB) -name "UserMayModifySettings Bypass") {
+        $modified = $true
+    }
+
+    # Patch 6: OnExtensionSystemReady Startup Loop Bypass
+    $p6Pattern = @(0xE8, 0x00, 0x00, 0x00, 0x00, 0x40, 0x84, 0xFF, 0x0F, 0x84, 0xB2, 0x00, 0x00, 0x00)
+    if (Patch-Signature -bytes $bytes -pattern $p6Pattern -mask "x????xxxxxxxxx" -expectedAddr 0x0E812843 -patchOffset 8 -patchBytes @(0xE9, 0xB3, 0x00, 0x00, 0x00, 0x90) -name "OnExtensionSystemReady Startup Loop Bypass") {
+        $modified = $true
+    }
+
+    # Patch 7: MV2 Deprecation Constant Neutralizer (10 constant setters)
+    $constantConfigs = @(
+        @{ Expected = 0xC45ED80; Pattern = @(0x8B, 0x43, 0x10, 0x89, 0xC1, 0x81, 0xC9, 0x00, 0x00, 0x80, 0x00, 0x89, 0x4B, 0x10); Mask = "xxxxxxxxxxxxxx"; Offset = 9 },
+        @{ Expected = 0xC997305; Pattern = @(0x48, 0x39, 0xD0, 0x75, 0x52, 0x81, 0xC9, 0x00, 0x00, 0x80, 0x00, 0x41, 0x89, 0x4C, 0x24, 0x1C); Mask = "xxxxxxxxxxxxxxxx"; Offset = 9 },
+        @{ Expected = 0xCB1818F; Pattern = @(0x84, 0xC0, 0x74, 0x0C, 0x41, 0x81, 0xCD, 0x00, 0x00, 0x80, 0x00, 0xE9); Mask = "xxxxxxxxxxxx"; Offset = 9 },
+        @{ Expected = 0xE62EDC0; Pattern = @(0x8B, 0x4F, 0x10, 0x89, 0xC8, 0x0D, 0x00, 0x00, 0x80, 0x00, 0x89, 0x47, 0x10); Mask = "xxxxxxxxxxxxx"; Offset = 8 },
+        @{ Expected = 0xD265FD9; Pattern = @(0x8B, 0x48, 0x40, 0x81, 0xC9, 0x00, 0x00, 0x80, 0x00, 0x89, 0x48, 0x40); Mask = "xxxxxxxxxxxx"; Offset = 7 },
+        @{ Expected = 0xDA20249; Pattern = @(0x8B, 0x4F, 0x64, 0x41, 0x89, 0xD0, 0x41, 0x81, 0xC8, 0x00, 0x00, 0x80, 0x00); Mask = "xxxxxxxxxxxxx"; Offset = 11 },
+        @{ Expected = 0xDA20257; Pattern = @(0x89, 0xC8, 0x41, 0x81, 0xC8, 0x00, 0x00, 0x80, 0x00, 0x44, 0x89, 0x47, 0x64); Mask = "xxxxxxxxxxxxx"; Offset = 7 },
+        @{ Expected = 0xE613CF1; Pattern = @(0x49, 0xBF, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0xFF, 0xBA, 0x00, 0x00, 0x80, 0x00); Mask = "xx????xxxxxxxxx"; Offset = 13 },
+        @{ Expected = 0xE67E02B; Pattern = @(0xF3, 0x0F, 0x11, 0x86, 0xF8, 0x05, 0x00, 0x00, 0x0D, 0x00, 0x00, 0x80, 0x00); Mask = "xxxxxxxxxxxxx"; Offset = 11 },
+        @{ Expected = 0xE8D0A76; Pattern = @(0x8B, 0x46, 0x10, 0x0D, 0x00, 0x00, 0x80, 0x00, 0x89, 0x46, 0x10); Mask = "xxxxxxxxxxx"; Offset = 6 }
+    )
+
+    $neutralizedCount = 0
+    $alreadyNeutralizedCount = 0
+    $skippedNeutralizedCount = 0
+    
+    foreach ($cfg in $constantConfigs) {
+        $scanRadius = 0x20000
+        $start = [Math]::Max(0, $cfg.Expected - $scanRadius)
+        $end = [Math]::Min($bytes.Length, $cfg.Expected + $scanRadius)
+        $pos = Find-Pattern -bytes $bytes -pattern $cfg.Pattern -mask $cfg.Mask -start $start -end $end
+        if ($pos -eq -1) {
+            $skippedNeutralizedCount++
+        } else {
+            $targetPos = $pos + $cfg.Offset
+            if ($bytes[$targetPos] -eq 0x00) {
+                $alreadyNeutralizedCount++
+            } else {
+                $bytes[$targetPos] = 0x00
+                $neutralizedCount++
+                $modified = $true
+            }
+        }
+    }
+
+    if ($neutralizedCount -gt 0) {
+        Write-Host ($Msg[$Lang].PatchingFeature -f "MV2 Deprecation Constant Neutralizer ($neutralizedCount sub-patches)") -ForegroundColor Cyan
+    } elseif ($alreadyNeutralizedCount -eq $constantConfigs.Count) {
+        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "MV2 Deprecation Constant Neutralizer") -ForegroundColor DarkCyan
     } else {
-        Write-Host ($Msg[$Lang].PatchSkipping -f "Re-Enable Policy Bypass") -ForegroundColor Yellow
+        Write-Host ($Msg[$Lang].PatchSkipping -f "MV2 Deprecation Constant Neutralizer (some segments skipped)") -ForegroundColor Yellow
+    }
+
+    # Patch 8: disable_reasons Preference Writes Blocker (4 NOPed write call sites)
+    $writeConfigs = @(
+        @{ Expected = 0xE849B99; Pattern = @(0x48, 0x8D, 0x8C, 0x24, 0x10, 0x02, 0x00, 0x00, 0x49, 0x89, 0xD8, 0xE8, 0x00, 0x00, 0x00, 0x00); Mask = "xxxxxxxxxxxx????"; Offset = 11 },
+        @{ Expected = 0xE849E64; Pattern = @(0x49, 0x89, 0xF8, 0xE8, 0x00, 0x00, 0x00, 0x00); Mask = "xxxx????"; Offset = 3 },
+        @{ Expected = 0x82E506B; Pattern = @(0x48, 0x89, 0xF2, 0x4D, 0x89, 0xF1, 0xE8, 0x00, 0x00, 0x00, 0x00); Mask = "xxxxxxx????"; Offset = 6 },
+        @{ Expected = 0x82E50CF; Pattern = @(0x48, 0x89, 0xF2, 0xE8, 0x00, 0x00, 0x00, 0x00); Mask = "xxxx????"; Offset = 3 }
+    )
+
+    $blockedCount = 0
+    $alreadyBlockedCount = 0
+    $skippedBlockedCount = 0
+
+    foreach ($cfg in $writeConfigs) {
+        $scanRadius = 0x20000
+        $start = [Math]::Max(0, $cfg.Expected - $scanRadius)
+        $end = [Math]::Min($bytes.Length, $cfg.Expected + $scanRadius)
+        $pos = Find-Pattern -bytes $bytes -pattern $cfg.Pattern -mask $cfg.Mask -start $start -end $end
+        if ($pos -eq -1) {
+            $skippedBlockedCount++
+        } else {
+            $targetPos = $pos + $cfg.Offset
+            $alreadyPatched = $true
+            for ($j = 0; $j -lt 5; $j++) {
+                if ($bytes[$targetPos + $j] -ne 0x90) { $alreadyPatched = $false }
+            }
+            if ($alreadyPatched) {
+                $alreadyBlockedCount++
+            } else {
+                for ($j = 0; $j -lt 5; $j++) {
+                    $bytes[$targetPos + $j] = 0x90
+                }
+                $blockedCount++
+                $modified = $true
+            }
+        }
+    }
+
+    if ($blockedCount -gt 0) {
+        Write-Host ($Msg[$Lang].PatchingFeature -f "disable_reasons Preference Writes Blocker ($blockedCount sub-patches)") -ForegroundColor Cyan
+    } elseif ($alreadyBlockedCount -eq $writeConfigs.Count) {
+        Write-Host ($Msg[$Lang].PatchAlreadyPatched -f "disable_reasons Preference Writes Blocker") -ForegroundColor DarkCyan
+    } else {
+        Write-Host ($Msg[$Lang].PatchSkipping -f "disable_reasons Preference Writes Blocker (some segments skipped)") -ForegroundColor Yellow
     }
 
     if ($modified) {
