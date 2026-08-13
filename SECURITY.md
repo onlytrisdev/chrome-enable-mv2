@@ -10,7 +10,7 @@ Those debugging and process-memory APIs are also used by debuggers, profilers, a
 2. Run:
 
    ```powershell
-   Get-FileHash .\ChromeMv2Launcher-v3.0.0-win-x64.zip -Algorithm SHA256
+   Get-FileHash .\ChromeMv2Launcher-v3.1.0-win-x64.zip -Algorithm SHA256
    ```
 
 3. Compare the result with `SHA256SUMS.txt`.
