@@ -1,111 +1,100 @@
-# Chrome Manifest V2 Enabler (Chrome MV2 Patcher)
+# MV2 RAM Launcher for Chrome
 
-[Tiếng Việt](#tiếng-viet) | [English](#english)
+`mv2ctl` finds Chrome's Manifest V2 deprecation gates and applies verified in-memory edits after `chrome.dll` is loaded. It does not modify `chrome.dll` on disk.
 
----
+If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-### Demo Video / Video chạy thử
+The current semantic rule was developed and tested against Google Chrome `151.0.7922.137` and `151.0.7922.138` x64. Other builds are accepted only when exactly one candidate passes every semantic check.
 
-[How to use (Tiếng Việt / English)](how-to-use.mp4)
+Vietnamese instructions: [README.vi.md](README.vi.md)
 
----
+## Packaged executable
 
-<a name="tiếng-viet"></a>
-## Tiếng Việt
+The recommended self-contained WinUI 3 GUI is:
 
-Dự án này cung cấp công cụ tự động chỉnh sửa (patch) tệp tin `chrome.dll` của trình duyệt Google Chrome nhằm kích hoạt lại hỗ trợ Manifest V2. Việc này giúp bạn tiếp tục cài đặt và sử dụng các tiện ích mở rộng sử dụng Manifest V2 (như uBlock Origin bản thường, thay vì bản Lite) trên các phiên bản Chrome mới (bao gồm Chrome 150/151+) mà không bị Google chặn.
+```powershell
+.\artifacts\win-x64-gui\ChromeMv2Launcher.exe
+```
 
-### Tính năng nổi bật
-* **Quản lý dạng Menu**: Tích hợp 6 trong 1 (Vá Chrome, Tải/Cài uBlock Origin, Tải Extension bất kỳ từ Store, Khôi phục bản gốc, Chuyển ngôn ngữ) vào một tập lệnh duy nhất.
-* **Đa ngôn ngữ**: Mặc định hiển thị tiếng Anh, hỗ trợ chuyển đổi sang tiếng Việt linh hoạt qua menu.
-* **Tải & Giải nén mọi Extension từ Chrome Web Store**: Dán link Store hoặc nhập ID tiện ích để tự động tải và giải nén (bóc tách CRX Header tự động).
-* **Tự động bật Developer Mode**: Sửa cấu hình Preferences để kích hoạt Chế độ nhà phát triển cho tất cả các Profile Chrome.
-* **Sao chép đường dẫn tự động**: Copy đường dẫn thư mục giải nén vào Clipboard giúp cài đặt nhanh bằng 1 phím tắt.
-* **Độ tương thích cao**: Hoạt động tốt trên Windows cũ, cả bản cài đặt chính thức lẫn bản Chromium tùy biến/Portable.
-* **An sau & Sao lưu**: Tự động tạo bản sao lưu (`chrome.dll.BAK`) trước khi thực hiện bất kỳ chỉnh sửa nào.
+It analyzes Chrome on startup, monitors whether Chrome is running, repairs persisted MV2 profile state when necessary, and exposes the verified RAM launch as one primary button. GitHub Releases use a normal ZIP containing the self-contained app rather than a self-extracting executable, reducing opaque packaging and making every runtime file inspectable.
 
-### Danh sách tệp tin
-* [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Tập lệnh dành cho Chrome v150 trở xuống.
-* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Tập lệnh dành cho Chrome Beta v151 trở lên (chứa giải pháp vá chính sách và logic nạp MV2 mới).
+### CLI
 
-### Hướng dẫn sử dụng `patch-chrome-151.bat` / `patch-chrome-150.bat`
-1. Nhấp chuột phải vào tệp **patch-chrome-151.bat** (hoặc **patch-chrome-150.bat** tùy thuộc phiên bản Chrome của bạn) và chọn **Run as administrator** (Chạy dưới quyền quản trị viên).
-2. Lựa chọn ngôn ngữ: Mặc định là tiếng Anh. Nhấn **`5`** và **`Enter`** để chuyển sang tiếng Việt.
-3. Trình quản lý hiển thị menu với các lựa chọn:
+The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2ctl.exe`. It does not require a separately installed .NET runtime.
 
-#### Lựa chọn 1: Vá Google Chrome (Manifest V2 Enabler)
-* Nhấn `1` và `Enter`. Tập lệnh tự động vá `chrome.dll` để mở khóa Manifest V2.
+```powershell
+.\artifacts\win-x64-self-contained\mv2ctl.exe analyze
+.\artifacts\win-x64-self-contained\mv2ctl.exe launch
+```
 
-#### Lựa chọn 2: Tải & Cài đặt uBlock Origin MV2 từ GitHub
-* Nhấn `2` và `Enter`. Tập lệnh sẽ tải bản uBlock Origin MV2 mới nhất từ GitHub releases, tự động giải nén, bật Developer mode cho tất cả các Profile và copy đường dẫn giải nén vào clipboard.
+## Safety properties
 
-#### Lựa chọn 3: Tải & Giải nén Extension bất kỳ từ Chrome Web Store
-* Nhấn `3` và `Enter`. Dán đường dẫn Chrome Web Store của tiện ích mở rộng (hoặc nhập ID của tiện ích gồm 32 ký tự). Tập lệnh sẽ tải tệp `.crx`, bóc tách header của CRX2/CRX3 để giải nén thành mã nguồn và copy đường dẫn vào clipboard.
+- Scans only the executable `.text` PE section.
+- Does not use an expected file offset or RVA.
+- Enumerates every byte-pattern candidate and applies structural checks.
+- Requires exactly one semantic match; zero or multiple matches abort.
+- Locates both impact-checker overloads and two compiler-generated management clones.
+- Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
+- Verifies every original byte in the remote process before writing any target.
+- Reads every byte back after writing and flushes the instruction cache.
+- Never writes to `chrome.dll` on disk.
+- Refuses to launch while any Chrome process is already running.
 
-#### Lựa chọn 4: Khôi phục Google Chrome về nguyên bản
-* Nhấn `4` và `Enter`. Tập lệnh khôi phục tệp `chrome.dll` ban đầu từ tệp `.BAK`.
+## Build and test
 
-#### Lựa chọn 5: Chuyển đổi ngôn ngữ
-* Nhấn `5` và `Enter` để đổi giữa tiếng Anh (English) và tiếng Việt.
+```powershell
+dotnet build .\ManifestV2.slnx -c Release
+dotnet test .\ManifestV2.slnx -c Release
+dotnet run --project .\src\Mv2Enabler -c Release -- analyze
+dotnet run --project .\src\Mv2Enabler -c Release -- smoke-test
+dotnet run --project .\src\Mv2Enabler -c Release -- functional-ui-test --extension .\test-extension
+```
 
----
+The patch engine lives in `src\Mv2Enabler.Core`; both the CLI and WinUI 3 app reference the same implementation.
 
-### Các bước nạp Tiện ích đã giải nén vào Chrome:
-1. Mở trình duyệt Google Chrome và truy cập địa chỉ: `chrome://extensions`
-2. Bật công tắc **Chế độ dành cho nhà phát triển** (Developer mode) ở góc trên bên phải.
-3. Nhấp vào nút **Tải tiện ích đã giải nén** (Load unpacked) ở góc trên bên trái.
-4. Hộp thoại chọn thư mục hiện ra, bạn chỉ cần nhấn **`Ctrl + V`** và nhấn **`Enter`** (để dán đường dẫn đã được script copy tự động) -> Tiện ích sẽ được nạp vĩnh viễn!
+The automated smoke test creates a uniquely named profile below `%TEMP%\mv2ctl-smoke`, launches headless Chrome, applies and verifies the RAM patch, confirms Chrome remains alive, stops only the process tree it created, and removes that temporary profile.
 
----
+The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It also checks the extension manager reports the extension as enabled without the `unsupportedManifestVersion` disable reason. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
 
-<a name="english"></a>
-## English
+## Launch Chrome
 
-This project provides a unified interactive tool to patch Google Chrome's `chrome.dll` to re-enable Manifest V2 support, download extensions from the Chrome Web Store or GitHub, and configure them automatically.
+Close every Chrome window and background process, then run:
 
-### Key Features
-* **Menu-Driven**: All-in-one script (Patch, Download/Install uBlock, Download Store CRX, Restore, Language Switcher) inside a single bat file.
-* **Multi-Language Support**: English by default, with Vietnamese translation toggle.
-* **Download & Unpack Any Extension from Web Store**: Paste a Store link or ID to download the `.crx` file, strip the CRX2/CRX3 header, and extract it as unpacked source code.
-* **Auto Developer Mode Toggle**: Configures Chrome's `Preferences` JSON files to enable Developer Mode for all profiles automatically.
-* **Auto Clipboard Copy**: Copies the unpacked folder path to your clipboard for quick installation.
-* **High Compatibility**: Tested across various Windows and PowerShell versions, supporting both official Chrome and custom Chromium/Portable builds.
-* **Safety First**: Automatically creates a backup copy (`chrome.dll.BAK`) before patching.
+```powershell
+dotnet run --project .\src\Mv2Enabler -c Release -- launch
+```
 
-### Files
-* [patch-chrome-150.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-150.bat): Patch script for Chrome v150 and below.
-* [patch-chrome-151.bat](file:///e:/xampp/htdocs/chrome-enable-mv2/patch-chrome-151.bat): Patch script for Chrome Beta v151+.
+Chrome arguments can be passed after `--`:
 
-### How to Use `patch-chrome-151.bat` / `patch-chrome-150.bat`
-1. Right-click on **patch-chrome-151.bat** (or **patch-chrome-150.bat** depending on your Chrome version) and select **Run as administrator**.
-2. Language Switch: The script starts in English by default. Press **`5`** and **`Enter`** to switch to Vietnamese.
-3. Select one of the menu options:
+```powershell
+dotnet run --project .\src\Mv2Enabler -c Release -- launch -- --user-data-dir=E:\Chrome-MV2-Profile
+```
 
-#### Option 1: Patch Google Chrome
-* Press `1` and `Enter` to patch `chrome.dll` and enable Manifest V2.
+Every new browser session must start through `mv2ctl`; the in-memory change disappears when Chrome exits. An MV2 extension only needs to be loaded once: later patched launches preserve the installed entry and prevent Chrome from persisting the unsupported-manifest disable reason again.
 
-#### Option 2: Download & Install uBlock Origin MV2
-* Press `2` and `Enter`. The script will download the latest MV2 zip release from GitHub, extract it, enable Developer Mode, and copy the folder path to your clipboard.
+## Functional MV2 check
 
-#### Option 3: Download & Extract Extension from Chrome Web Store
-* Press `3` and `Enter`. Paste the Chrome Web Store extension URL or enter the 32-character ID. The script will download the `.crx` package, strip the binary signature header, extract it, and copy the folder path to your clipboard.
+1. Launch Chrome through `mv2ctl`.
+2. Open `chrome://extensions` and enable Developer mode.
+3. Choose **Load unpacked** and select the repository's `test-extension` directory.
+4. Confirm **MV2 Gate Smoke Test** remains enabled and its toolbar badge reads `MV2`.
+5. Open `https://example.com` and run this in DevTools:
 
-#### Option 4: Restore Google Chrome
-* Press `4` and `Enter` to restore the original `chrome.dll` from backup.
+   ```js
+   document.documentElement.dataset.mv2GateSmokeTest
+   ```
 
-#### Option 5: Switch Language
-* Press `5` and `Enter` to toggle between English and Vietnamese.
+   The result should be `"running"`.
 
----
+The test extension exercises a persistent MV2 background page, `browser_action`, a blocking `webRequest` listener, storage, and a content script.
 
-### How to Load Unpacked Extensions into Chrome:
-1. Open Google Chrome and go to: `chrome://extensions`
-2. Enable the **Developer mode** toggle in the top-right corner.
-3. Click the **Load unpacked** button in the top-left corner.
-4. When the folder picker dialog appears, press **`Ctrl + V`** to paste the path copied by the script, then press **`Enter`** to load the extension.
+## Commands
 
----
+```text
+mv2ctl analyze [--chrome PATH] [--dll PATH] [--json]
+mv2ctl launch [--chrome PATH] [--timeout SECONDS] [--json] [-- CHROME_ARGS]
+mv2ctl smoke-test [--chrome PATH] [--timeout SECONDS] [--json]
+mv2ctl functional-ui-test --extension PATH [--chrome PATH] [--timeout SECONDS] [--json]
+```
 
-### Disclaimer / Tuyên bố miễn trừ trách nhiệm
-* Vietnamese: Công cụ này can thiệp vào tệp nhị phân của trình duyệt. Dù tập lệnh đã được thiết kế an toàn và có tính năng tự động sao lưu, hãy tự chịu trách nhiệm đối với mọi rủi ro có thể phát sinh khi sử dụng.
-* English: This tool patches the browser's binary files. Although it is designed with safety features (automatic backup), use it at your own risk.
+The launcher never modifies Google-signed binaries. Profile recovery is deliberately narrow: it removes only the MV2 disable bit, preserves other disable reasons, discovers the current preference MAC seed from `resources.pak` by validating existing MACs, and updates Chrome's protected preference hashes.

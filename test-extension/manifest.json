@@ -1,0 +1,27 @@
+{
+  "manifest_version": 2,
+  "name": "MV2 Gate Smoke Test",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuiJi55PfDPKwXUgWYmUF7Qah/9weQ7HRsLzD33fYYiHNkzOZdSh4zJR3u4bDaI1JuQinMJrEKgyBdoNfejrFSXvwjVG16MSZLJmxbhM6vFXGkhkve+qnDlWZU5Le9HAS1XiJil+GO1xnvxI34jEpmeje57/R2PAk/DitbdQdPcpvodNC4/kgs2DJfl2P4LCPYT2jptOBLM98c4hEHnLvq3nUuoukcjAh/zqSdvl0PtWqmtrPtUc90KK/7XFizljrx0o+KuwGE8sRZ4qU5EHwXtyFIp9FafdoCx0jXeEw6innSyuBnlXD07CNnrKRD+3k2BdAI2gPGvaVUIgQIIPaFQIDAQAB",
+  "description": "A local extension used to verify that the Chrome MV2 gate is open.",
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_title": "Manifest V2 is running"
+  },
+  "permissions": [
+    "storage",
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://example.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

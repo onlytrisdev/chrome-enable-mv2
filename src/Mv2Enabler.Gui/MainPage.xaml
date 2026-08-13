@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="Mv2Enabler_Gui.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:Mv2Enabler_Gui"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid MaxWidth="980" Padding="36,28,36,36" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Spacing="7">
+                <TextBlock FontSize="30" FontWeight="SemiBold" Text="Giữ Manifest V2 hoạt động" />
+                <TextBlock MaxWidth="720"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="Tự kiểm tra Chrome, khôi phục extension MV2 đã cài và áp dụng patch an toàn trong RAM."
+                           TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Grid.Row="1"
+                    Padding="22"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    CornerRadius="14">
+                <Grid ColumnSpacing="18" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border x:Name="AnalysisStatusDot"
+                            Width="12"
+                            Height="12"
+                            VerticalAlignment="Center"
+                            Background="#FF9CA3AF"
+                            CornerRadius="6" />
+                    <StackPanel Grid.Column="1" Spacing="3">
+                        <TextBlock x:Name="AnalysisStatusText" FontSize="17" FontWeight="SemiBold" Text="Đang kiểm tra Chrome…" />
+                        <TextBlock x:Name="ChromeVersionText"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="Phiên bản: —" />
+                    </StackPanel>
+                    <ProgressRing x:Name="BusyRing" Grid.Column="2" Width="24" Height="24" IsActive="True" />
+
+                    <FontIcon Grid.Row="1" Glyph="&#xE8B7;" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="ChromePathText"
+                               Grid.Row="1"
+                               Grid.Column="1"
+                               Grid.ColumnSpan="2"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Đang tìm chrome.exe…"
+                               TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Padding="18" Background="{StaticResource CardBackgroundBrush}" CornerRadius="12">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Trạng thái trình duyệt" />
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <Border x:Name="ProcessStatusDot" Width="10" Height="10" VerticalAlignment="Center" Background="#FF9CA3AF" CornerRadius="5" />
+                            <TextBlock x:Name="ProcessStatusText" Text="Đang kiểm tra…" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Padding="18" Background="{StaticResource CardBackgroundBrush}" CornerRadius="12">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Cách mở" />
+                        <CheckBox x:Name="OpenExtensionsCheckBox"
+                                  IsChecked="True"
+                                  Content="Mở trang quản lý tiện ích" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <StackPanel Grid.Row="3" Spacing="12">
+                <Button x:Name="LaunchButton"
+                        MinHeight="52"
+                        HorizontalAlignment="Stretch"
+                        Click="LaunchButton_Click"
+                        IsEnabled="False"
+                        Style="{StaticResource AccentButtonStyle}">
+                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="10">
+                        <FontIcon FontSize="18" Glyph="&#xE768;" />
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Mở Chrome với Manifest V2" />
+                    </StackPanel>
+                </Button>
+
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Click="RefreshButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72C;" />
+                            <TextBlock Text="Kiểm tra lại" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Grid.Column="1"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Extension chỉ cần cài một lần. Các phiên Chrome sau phải được mở từ ứng dụng này."
+                               TextWrapping="Wrap" />
+                </Grid>
+
+                <InfoBar x:Name="ResultInfoBar" IsClosable="True" IsOpen="False" />
+            </StackPanel>
+
+            <Expander Grid.Row="4" Header="Chi tiết kỹ thuật" IsExpanded="False">
+                <Border Margin="0,8,0,0" Padding="16" Background="{StaticResource AccentSoftBrush}" CornerRadius="10">
+                    <TextBox x:Name="DetailsTextBox"
+                             AcceptsReturn="True"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             FontFamily="Cascadia Mono"
+                             FontSize="12"
+                             IsReadOnly="True"
+                             IsTabStop="False"
+                             Text="Chưa có dữ liệu phân tích."
+                             TextWrapping="Wrap" />
+                </Border>
+            </Expander>
+        </Grid>
+    </ScrollViewer>
+</Page>

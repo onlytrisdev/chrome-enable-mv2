@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>Mv2Enabler.Core</AssemblyName>
+    <RootNamespace>Mv2Enabler</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Mv2Enabler\*.cs"
+             Exclude="..\Mv2Enabler\Program.cs"
+             Link="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="mv2ctl" />
+    <InternalsVisibleTo Include="Mv2Enabler.Tests" />
+    <InternalsVisibleTo Include="ChromeMv2Launcher" />
+  </ItemGroup>
+</Project>
