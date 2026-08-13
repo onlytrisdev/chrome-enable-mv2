@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Mv2Enabler.Gui (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Mv2Enabler.Gui (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

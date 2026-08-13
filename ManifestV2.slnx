@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Mv2Enabler/Mv2Enabler.csproj" />
+  <Project Path="src/Mv2Enabler.Core/Mv2Enabler.Core.csproj" />
+  <Project Path="src/Mv2Enabler.Gui/Mv2Enabler.Gui.csproj" />
+  <Project Path="tests/Mv2Enabler.Tests/Mv2Enabler.Tests.csproj" />
+</Solution>
