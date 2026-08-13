@@ -16,6 +16,8 @@ Chạy trực tiếp file self-contained:
 
 Ứng dụng tự phân tích Chrome khi mở. Khi trạng thái chuyển sang **Sẵn sàng**, đóng mọi cửa sổ Chrome và bấm **Mở Chrome với Manifest V2**. Nút launch tự khóa khi Chrome đang chạy và tự bật lại sau khi Chrome đóng.
 
+GUI hỗ trợ `Tiếng Việt`, `English` và `简体中文`. Lần chạy đầu ứng dụng tự chọn theo ngôn ngữ Windows, sau đó ghi nhớ lựa chọn tại `%LOCALAPPDATA%\ChromeMv2Launcher\language.txt`.
+
 Bản GitHub Release được đóng gói dạng ZIP self-contained. Sau khi giải nén, chạy `ChromeMv2Launcher.exe`; không cần cài .NET hoặc Windows App Runtime riêng.
 
 ## CLI

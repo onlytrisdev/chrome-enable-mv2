@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "3.0.0"
+    [string]$Version = "3.1.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +8,13 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseRoot = Join-Path $projectRoot "artifacts\release"
 $guiPublish = Join-Path $releaseRoot "ChromeMv2Launcher-win-x64"
 $cliPublish = Join-Path $releaseRoot "mv2ctl-win-x64"
+
+$runningLauncher = Get-Process -Name "ChromeMv2Launcher" -ErrorAction SilentlyContinue
+if ($null -ne $runningLauncher)
+{
+    $processIds = ($runningLauncher.Id | Sort-Object) -join ", "
+    throw "Close Chrome MV2 Launcher before building. Running PID(s): $processIds"
+}
 
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 

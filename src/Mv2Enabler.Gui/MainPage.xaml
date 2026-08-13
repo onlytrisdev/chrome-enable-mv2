@@ -18,13 +18,30 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Spacing="7">
-                <TextBlock FontSize="30" FontWeight="SemiBold" Text="Giữ Manifest V2 hoạt động" />
-                <TextBlock MaxWidth="720"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Text="Tự kiểm tra Chrome, khôi phục extension MV2 đã cài và áp dụng patch an toàn trong RAM."
-                           TextWrapping="Wrap" />
-            </StackPanel>
+            <Grid ColumnSpacing="24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="7">
+                    <TextBlock x:Name="HeroTitleText" FontSize="30" FontWeight="SemiBold" />
+                    <TextBlock x:Name="HeroSubtitleText"
+                               MaxWidth="720"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Top" Spacing="5">
+                    <TextBlock x:Name="LanguageLabelText"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ComboBox x:Name="LanguageComboBox"
+                              MinWidth="150"
+                              SelectionChanged="LanguageComboBox_SelectionChanged">
+                        <ComboBoxItem Tag="vi" Content="Tiếng Việt" />
+                        <ComboBoxItem Tag="en" Content="English" />
+                        <ComboBoxItem Tag="zh-CN" Content="简体中文" />
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
 
             <Border Grid.Row="1"
                     Padding="22"
@@ -48,10 +65,10 @@
                             Background="#FF9CA3AF"
                             CornerRadius="6" />
                     <StackPanel Grid.Column="1" Spacing="3">
-                        <TextBlock x:Name="AnalysisStatusText" FontSize="17" FontWeight="SemiBold" Text="Đang kiểm tra Chrome…" />
+                        <TextBlock x:Name="AnalysisStatusText" FontSize="17" FontWeight="SemiBold" />
                         <TextBlock x:Name="ChromeVersionText"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   Text="Phiên bản: —" />
+                                   Text="—" />
                     </StackPanel>
                     <ProgressRing x:Name="BusyRing" Grid.Column="2" Width="24" Height="24" IsActive="True" />
 
@@ -61,7 +78,7 @@
                                Grid.Column="1"
                                Grid.ColumnSpan="2"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               Text="Đang tìm chrome.exe…"
+                               Text="chrome.exe"
                                TextTrimming="CharacterEllipsis" />
                 </Grid>
             </Border>
@@ -74,20 +91,19 @@
 
                 <Border Padding="18" Background="{StaticResource CardBackgroundBrush}" CornerRadius="12">
                     <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Trạng thái trình duyệt" />
+                        <TextBlock x:Name="BrowserStatusHeaderText" FontWeight="SemiBold" />
                         <StackPanel Orientation="Horizontal" Spacing="9">
                             <Border x:Name="ProcessStatusDot" Width="10" Height="10" VerticalAlignment="Center" Background="#FF9CA3AF" CornerRadius="5" />
-                            <TextBlock x:Name="ProcessStatusText" Text="Đang kiểm tra…" />
+                            <TextBlock x:Name="ProcessStatusText" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="1" Padding="18" Background="{StaticResource CardBackgroundBrush}" CornerRadius="12">
                     <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Cách mở" />
+                        <TextBlock x:Name="LaunchOptionsHeaderText" FontWeight="SemiBold" />
                         <CheckBox x:Name="OpenExtensionsCheckBox"
-                                  IsChecked="True"
-                                  Content="Mở trang quản lý tiện ích" />
+                                  IsChecked="True" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -101,7 +117,7 @@
                         Style="{StaticResource AccentButtonStyle}">
                     <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="10">
                         <FontIcon FontSize="18" Glyph="&#xE768;" />
-                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Mở Chrome với Manifest V2" />
+                        <TextBlock x:Name="LaunchButtonText" FontSize="16" FontWeight="SemiBold" />
                     </StackPanel>
                 </Button>
 
@@ -113,20 +129,20 @@
                     <Button Click="RefreshButton_Click">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE72C;" />
-                            <TextBlock Text="Kiểm tra lại" />
+                            <TextBlock x:Name="RefreshButtonText" />
                         </StackPanel>
                     </Button>
-                    <TextBlock Grid.Column="1"
+                    <TextBlock x:Name="HintText"
+                               Grid.Column="1"
                                VerticalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               Text="Extension chỉ cần cài một lần. Các phiên Chrome sau phải được mở từ ứng dụng này."
                                TextWrapping="Wrap" />
                 </Grid>
 
                 <InfoBar x:Name="ResultInfoBar" IsClosable="True" IsOpen="False" />
             </StackPanel>
 
-            <Expander Grid.Row="4" Header="Chi tiết kỹ thuật" IsExpanded="False">
+            <Expander x:Name="TechnicalDetailsExpander" Grid.Row="4" IsExpanded="False">
                 <Border Margin="0,8,0,0" Padding="16" Background="{StaticResource AccentSoftBrush}" CornerRadius="10">
                     <TextBox x:Name="DetailsTextBox"
                              AcceptsReturn="True"
@@ -136,7 +152,6 @@
                              FontSize="12"
                              IsReadOnly="True"
                              IsTabStop="False"
-                             Text="Chưa có dữ liệu phân tích."
                              TextWrapping="Wrap" />
                 </Border>
             </Expander>

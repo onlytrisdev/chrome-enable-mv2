@@ -18,6 +18,8 @@ The recommended self-contained WinUI 3 GUI is:
 
 It analyzes Chrome on startup, monitors whether Chrome is running, repairs persisted MV2 profile state when necessary, and exposes the verified RAM launch as one primary button. GitHub Releases use a normal ZIP containing the self-contained app rather than a self-extracting executable, reducing opaque packaging and making every runtime file inspectable.
 
+The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
+
 ### CLI
 
 The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2ctl.exe`. It does not require a separately installed .NET runtime.

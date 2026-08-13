@@ -21,10 +21,14 @@ public sealed partial class MainPage : Page
     private ChromeInstallation? _installation;
     private AnalysisReport? _analysis;
     private bool _busy;
+    private bool _analysisFailed;
 
     public MainPage()
     {
         InitializeComponent();
+        LocalizationService.Initialize();
+        SelectCurrentLanguage();
+        ApplyLanguage();
         Loaded += MainPage_Loaded;
         Unloaded += MainPage_Unloaded;
         _processTimer.Tick += (_, _) => UpdateProcessState();
@@ -40,11 +44,24 @@ public sealed partial class MainPage : Page
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await AnalyzeAsync();
 
+    private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LanguageComboBox.SelectedItem is not ComboBoxItem { Tag: string language })
+        {
+            return;
+        }
+
+        LocalizationService.SetLanguage(language);
+        ResultInfoBar.IsOpen = false;
+        ApplyLanguage();
+    }
+
     private async Task AnalyzeAsync()
     {
         SetBusy(true);
+        _analysisFailed = false;
         ResultInfoBar.IsOpen = false;
-        AnalysisStatusText.Text = "Đang phân tích semantic signature…";
+        AnalysisStatusText.Text = T("AnalyzingSemantic");
         AnalysisStatusDot.Background = Brush(Colors.Gray);
 
         try
@@ -57,33 +74,34 @@ public sealed partial class MainPage : Page
 
             _installation = result.Installation;
             _analysis = result.Report;
-            ChromeVersionText.Text = $"Phiên bản: {result.Report.Version}";
+            ChromeVersionText.Text = T("Version", result.Report.Version);
             ChromePathText.Text = result.Report.ChromePath;
             DetailsTextBox.Text = FormatReport(result.Report);
 
             if (result.Report.Success && result.Report.Target is not null)
             {
-                AnalysisStatusText.Text = "Sẵn sàng — tìm thấy patch target an toàn";
+                AnalysisStatusText.Text = T("Ready");
                 AnalysisStatusDot.Background = Brush(Colors.LimeGreen);
             }
             else
             {
-                AnalysisStatusText.Text = "Không tìm thấy patch target an toàn";
+                AnalysisStatusText.Text = T("NoSafeTarget");
                 AnalysisStatusDot.Background = Brush(Colors.OrangeRed);
                 ShowMessage(
                     InfoBarSeverity.Error,
-                    "Không thể mở Chrome",
-                    "Phiên bản Chrome này không khớp semantic signature. Công cụ đã dừng an toàn và không thay đổi gì.");
+                    T("CannotOpenChrome"),
+                    T("UnsupportedChrome"));
             }
         }
         catch (Exception exception)
         {
             _installation = null;
             _analysis = null;
-            AnalysisStatusText.Text = "Không thể phân tích Chrome";
+            _analysisFailed = true;
+            AnalysisStatusText.Text = T("CannotAnalyze");
             AnalysisStatusDot.Background = Brush(Colors.OrangeRed);
             DetailsTextBox.Text = exception.ToString();
-            ShowMessage(InfoBarSeverity.Error, "Lỗi phân tích", exception.Message);
+            ShowMessage(InfoBarSeverity.Error, T("AnalysisError"), exception.Message);
         }
         finally
         {
@@ -122,13 +140,13 @@ public sealed partial class MainPage : Page
                 return (ProfileRepair: profileRepair, Launch: launch);
             });
 
-            var repairText = outcome.ProfileRepair.ExtensionsReEnabled > 0
-                ? $" Đã tự khôi phục {outcome.ProfileRepair.ExtensionsReEnabled} extension MV2."
-                : string.Empty;
+            var launchMessage = outcome.ProfileRepair.ExtensionsReEnabled > 0
+                ? T("LaunchSuccessWithRepair", outcome.Launch.ProcessId, outcome.ProfileRepair.ExtensionsReEnabled)
+                : T("LaunchSuccess", outcome.Launch.ProcessId);
             ShowMessage(
                 InfoBarSeverity.Success,
-                "Chrome đã được mở với Manifest V2",
-                $"Patch RAM đã được xác minh trên PID {outcome.Launch.ProcessId}.{repairText}");
+                T("LaunchSuccessTitle"),
+                launchMessage);
             DetailsTextBox.Text = FormatLaunch(outcome.ProfileRepair, outcome.Launch) + Environment.NewLine + Environment.NewLine + DetailsTextBox.Text;
         }
         catch (Exception exception)
@@ -136,7 +154,7 @@ public sealed partial class MainPage : Page
             DetailsTextBox.Text = exception + Environment.NewLine + Environment.NewLine + DetailsTextBox.Text;
             ShowMessage(
                 InfoBarSeverity.Error,
-                "Không thể mở Chrome",
+                T("CannotOpenChrome"),
                 FriendlyError(exception));
         }
         finally
@@ -153,8 +171,8 @@ public sealed partial class MainPage : Page
         {
             var running = processes.Length > 0;
             ProcessStatusText.Text = running
-                ? $"Chrome đang chạy ({processes.Length} tiến trình)"
-                : "Chrome đã đóng — có thể launch";
+                ? T("ChromeRunning", processes.Length)
+                : T("ChromeClosed");
             ProcessStatusDot.Background = Brush(running ? Colors.Gold : Colors.LimeGreen);
             LaunchButton.IsEnabled = !_busy && !running && _analysis?.Success == true && _analysis.Target is not null;
         }
@@ -185,15 +203,76 @@ public sealed partial class MainPage : Page
         ResultInfoBar.IsOpen = true;
     }
 
-    private static string FriendlyError(Exception exception)
+    private string FriendlyError(Exception exception)
     {
         if (exception.Message.Contains("Chrome is already running", StringComparison.OrdinalIgnoreCase))
         {
-            return "Hãy đóng hoàn toàn mọi cửa sổ Chrome. Nút Launch sẽ tự bật lại sau vài giây.";
+            return T("CloseChrome");
         }
 
         return exception.Message;
     }
+
+    private void SelectCurrentLanguage()
+    {
+        foreach (var item in LanguageComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag as string, LocalizationService.CurrentLanguage, StringComparison.OrdinalIgnoreCase))
+            {
+                LanguageComboBox.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private void ApplyLanguage()
+    {
+        LanguageLabelText.Text = T("LanguageLabel");
+        HeroTitleText.Text = T("HeroTitle");
+        HeroSubtitleText.Text = T("HeroSubtitle");
+        BrowserStatusHeaderText.Text = T("BrowserStatus");
+        LaunchOptionsHeaderText.Text = T("LaunchOptions");
+        OpenExtensionsCheckBox.Content = T("OpenExtensions");
+        LaunchButtonText.Text = T("LaunchButton");
+        RefreshButtonText.Text = T("Refresh");
+        HintText.Text = T("Hint");
+        TechnicalDetailsExpander.Header = T("TechnicalDetails");
+
+        if (_busy)
+        {
+            AnalysisStatusText.Text = T("AnalyzingSemantic");
+        }
+        else if (_analysisFailed)
+        {
+            AnalysisStatusText.Text = T("CannotAnalyze");
+        }
+        else if (_analysis is null)
+        {
+            AnalysisStatusText.Text = T("CheckingChrome");
+        }
+        else
+        {
+            AnalysisStatusText.Text = _analysis.Success ? T("Ready") : T("NoSafeTarget");
+        }
+
+        if (_analysis is null)
+        {
+            ChromeVersionText.Text = T("VersionPlaceholder");
+            if (!_analysisFailed)
+            {
+                ChromePathText.Text = T("FindingChrome");
+                DetailsTextBox.Text = T("NoAnalysis");
+            }
+        }
+        else
+        {
+            ChromeVersionText.Text = T("Version", _analysis.Version);
+        }
+
+        UpdateProcessState();
+    }
+
+    private static string T(string key, params object[] arguments) => LocalizationService.Text(key, arguments);
 
     private static SolidColorBrush Brush(Windows.UI.Color color) => new(color);
 
