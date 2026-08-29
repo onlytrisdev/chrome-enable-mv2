@@ -12,6 +12,8 @@ internal sealed record UiFunctionalTestResult(
     IReadOnlyList<int> PatchedChromeProcessIds,
     string? ExtensionTargetTitle,
     string? ExtensionTargetUrl,
+    bool RestartPersistenceVerified,
+    string? RestartExtensionTargetUrl,
     string ExtensionManagerState,
     string ExtensionsPageText,
     bool TemporaryProfileRemoved,
@@ -48,6 +50,7 @@ internal static class UiFunctionalTestService
         byte livePatchByte = 0;
         IReadOnlyList<int> patchedChromeProcessIds = [];
         DevToolsTarget? extensionTarget = null;
+        DevToolsTarget? restartExtensionTarget = null;
         var extensionManagerState = string.Empty;
         var extensionsPageText = string.Empty;
         var removed = false;
@@ -132,6 +135,46 @@ internal static class UiFunctionalTestService
                     Thread.Sleep(200);
                 }
             }
+
+            if (extensionTarget is not null)
+            {
+                StopBrowserForRestart(browser);
+                browser.Dispose();
+                browser = null;
+
+                var activePortFile = Path.Combine(profilePath, "DevToolsActivePort");
+                if (File.Exists(activePortFile))
+                {
+                    File.Delete(activePortFile);
+                }
+
+                var restartLaunch = ChromeDebugLauncher.Launch(
+                    installation,
+                    target,
+                    [
+                        "--no-first-run",
+                        "--no-default-browser-check",
+                        "--remote-debugging-port=0",
+                        $"--user-data-dir={profilePath}",
+                        "chrome://extensions/"
+                    ],
+                    timeout);
+                browser = Process.GetProcessById(checked((int)restartLaunch.ProcessId));
+                var restartPort = ChromeDevTools.WaitForPort(profilePath, browser, TimeSpan.FromSeconds(10));
+                var restartDeadline = Stopwatch.StartNew();
+                while (restartDeadline.Elapsed < TimeSpan.FromSeconds(12) && restartExtensionTarget is null)
+                {
+                    restartExtensionTarget = ChromeDevTools.GetTargets(restartPort).FirstOrDefault(item =>
+                        item.Url is not null &&
+                        Uri.TryCreate(item.Url, UriKind.Absolute, out var uri) &&
+                        string.Equals(uri.Scheme, "chrome-extension", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(uri.Host, expectedId, StringComparison.OrdinalIgnoreCase));
+                    if (restartExtensionTarget is null)
+                    {
+                        Thread.Sleep(200);
+                    }
+                }
+            }
         }
         finally
         {
@@ -174,7 +217,7 @@ internal static class UiFunctionalTestService
             removed = !Directory.Exists(profilePath);
         }
 
-        var success = extensionTarget is not null;
+        var success = extensionTarget is not null && restartExtensionTarget is not null;
         return new UiFunctionalTestResult(
             success,
             launch.ProcessId,
@@ -185,11 +228,61 @@ internal static class UiFunctionalTestService
             patchedChromeProcessIds,
             extensionTarget?.Title,
             extensionTarget?.Url,
+            restartExtensionTarget is not null,
+            restartExtensionTarget?.Url,
             extensionManagerState,
             extensionsPageText,
             removed,
             success
-                ? "Chrome loaded the exact MV2 test extension through the normal Load unpacked workflow and started its persistent background page."
-                : "The folder dialog completed, but the expected MV2 extension background target did not appear.");
+                ? "Chrome loaded the exact MV2 test extension, then preserved and restarted its background page after a full browser restart."
+                : extensionTarget is null
+                    ? "The folder dialog completed, but the expected MV2 extension background target did not appear."
+                    : "Chrome loaded the MV2 extension initially, but its background page did not return after restarting the same profile.");
+    }
+
+    private static void StopBrowserForRestart(Process browser)
+    {
+        if (!browser.HasExited)
+        {
+            _ = browser.CloseMainWindow();
+            if (!browser.WaitForExit(8000))
+            {
+                browser.Kill(entireProcessTree: true);
+                browser.WaitForExit(5000);
+            }
+        }
+
+        // The test starts only after verifying that no user Chrome instance is
+        // running, so any surviving Chrome helper belongs to this isolated profile.
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var helpers = Process.GetProcessesByName("chrome");
+            if (helpers.Length == 0)
+            {
+                break;
+            }
+
+            foreach (var helper in helpers)
+            {
+                try
+                {
+                    if (!helper.HasExited)
+                    {
+                        helper.Kill(entireProcessTree: true);
+                        helper.WaitForExit(1000);
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // The helper exited during cleanup.
+                }
+                finally
+                {
+                    helper.Dispose();
+                }
+            }
+
+            Thread.Sleep(250);
+        }
     }
 }

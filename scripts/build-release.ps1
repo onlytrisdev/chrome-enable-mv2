@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "3.1.0"
+    [string]$Version = "3.2.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +17,18 @@ if ($null -ne $runningLauncher)
 }
 
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
+
+$resolvedReleaseRoot = [System.IO.Path]::GetFullPath($releaseRoot).TrimEnd('\') + '\'
+foreach ($publishPath in @($guiPublish, $cliPublish))
+{
+    $resolvedPublishPath = [System.IO.Path]::GetFullPath($publishPath)
+    if (-not $resolvedPublishPath.StartsWith($resolvedReleaseRoot, [System.StringComparison]::OrdinalIgnoreCase))
+    {
+        throw "Refusing to clean publish path outside the release directory: $resolvedPublishPath"
+    }
+
+    Remove-Item -LiteralPath $resolvedPublishPath -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 dotnet publish (Join-Path $projectRoot "src\Mv2Enabler.Gui\Mv2Enabler.Gui.csproj") `
     -c Release -r win-x64 --self-contained true -o $guiPublish

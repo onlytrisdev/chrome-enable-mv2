@@ -255,37 +255,37 @@ internal static class ChromeProfileRepair
             case null:
                 return null;
             case JsonObject sourceObject:
-            {
-                var result = new JsonObject();
-                foreach (var pair in sourceObject)
                 {
-                    var child = CloneWithoutEmptyContainers(pair.Value);
-                    if (IsEmptyContainer(child))
+                    var result = new JsonObject();
+                    foreach (var pair in sourceObject)
                     {
-                        continue;
+                        var child = CloneWithoutEmptyContainers(pair.Value);
+                        if (IsEmptyContainer(child))
+                        {
+                            continue;
+                        }
+
+                        result.Add(pair.Key, child);
                     }
 
-                    result.Add(pair.Key, child);
+                    return result;
                 }
-
-                return result;
-            }
             case JsonArray sourceArray:
-            {
-                var result = new JsonArray();
-                foreach (var item in sourceArray)
                 {
-                    var child = CloneWithoutEmptyContainers(item);
-                    if (IsEmptyContainer(child))
+                    var result = new JsonArray();
+                    foreach (var item in sourceArray)
                     {
-                        continue;
+                        var child = CloneWithoutEmptyContainers(item);
+                        if (IsEmptyContainer(child))
+                        {
+                            continue;
+                        }
+
+                        result.Add(child);
                     }
 
-                    result.Add(child);
+                    return result;
                 }
-
-                return result;
-            }
             default:
                 return node.DeepClone();
         }

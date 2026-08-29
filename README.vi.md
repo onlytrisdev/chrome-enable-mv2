@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Bản hiện tại đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `151.0.7922.137` và `151.0.7922.138`.
+Phiên bản `3.2.0` đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `152.0.7977.65`. Rule dành cho Chrome 151 vẫn được giữ để tương thích với bản cũ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## GUI WinUI 3 (khuyên dùng)
 
@@ -47,7 +47,7 @@ Build trọn bộ artifact phát hành:
 .\scripts\build-release.ps1
 ```
 
-`functional-ui-test` tạo profile tạm, dùng luồng **Load unpacked** thật của `chrome://extensions`, chọn extension MV2 mẫu và yêu cầu đúng extension ID xuất hiện ở trạng thái enabled với persistent background page đang chạy. Test tự đóng cây tiến trình, xóa profile tạm và khôi phục nội dung clipboard.
+`functional-ui-test` tạo profile tạm, dùng luồng **Load unpacked** thật của `chrome://extensions`, chọn extension MV2 mẫu và yêu cầu đúng extension ID xuất hiện ở trạng thái enabled với persistent background page đang chạy. Sau đó test đóng Chrome, mở lại đúng profile qua RAM patcher và xác nhận background page MV2 tự chạy trở lại. Test tự đóng cây tiến trình, xóa profile tạm và khôi phục nội dung clipboard.
 
 ## Nạp extension MV2
 
@@ -61,7 +61,7 @@ Build trọn bộ artifact phát hành:
 ## Lưu ý
 
 - Chỉ hỗ trợ Google Chrome x64 trên Windows.
-- Bản build hiện tại được xác nhận trên Chrome `151.0.7922.137`.
+- Bản build hiện tại được xác nhận trên Chrome `152.0.7977.65`; rule Chrome 151 vẫn được giữ lại.
 - Công cụ có thể tiếp tục chạy sau update nếu semantic signatures vẫn khớp duy nhất; nếu không, analyzer sẽ fail-closed và cần bổ sung rule mới.
 - Seed MAC của profile được tự tìm trong `resources.pak` bằng cách đối chiếu các MAC hiện có; không hard-code seed hoặc offset theo phiên bản.
 - Chỉ entry extension có lý do MV2 mới được sửa. Các lý do disable khác được giữ nguyên.

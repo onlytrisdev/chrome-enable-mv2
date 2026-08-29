@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-The current semantic rule was developed and tested against Google Chrome `151.0.7922.137` and `151.0.7922.138` x64. Other builds are accepted only when exactly one candidate passes every semantic check.
+Version `3.2.0` was developed and tested end-to-end against Google Chrome `152.0.7977.65` x64. The Chrome 151 rule remains available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -34,8 +34,8 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - Scans only the executable `.text` PE section.
 - Does not use an expected file offset or RVA.
 - Enumerates every byte-pattern candidate and applies structural checks.
-- Requires exactly one semantic match; zero or multiple matches abort.
-- Locates both impact-checker overloads and two compiler-generated management clones.
+- Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
+- Chrome 152 rule v5 locates both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.
@@ -56,7 +56,7 @@ The patch engine lives in `src\Mv2Enabler.Core`; both the CLI and WinUI 3 app re
 
 The automated smoke test creates a uniquely named profile below `%TEMP%\mv2ctl-smoke`, launches headless Chrome, applies and verifies the RAM patch, confirms Chrome remains alive, stops only the process tree it created, and removes that temporary profile.
 
-The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It also checks the extension manager reports the extension as enabled without the `unsupportedManifestVersion` disable reason. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
+The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It then closes Chrome, launches the same temporary profile again through the RAM patcher, and requires the persistent MV2 background page to return. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
 
 ## Launch Chrome
 

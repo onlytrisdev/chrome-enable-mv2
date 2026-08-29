@@ -253,6 +253,8 @@ internal static class Program
             Console.WriteLine($"  Patched Chrome PIDs:    {string.Join(",", result.PatchedChromeProcessIds)}");
             Console.WriteLine($"  Extension target title: {result.ExtensionTargetTitle ?? "(none)"}");
             Console.WriteLine($"  Extension target URL:   {result.ExtensionTargetUrl ?? "(none)"}");
+            Console.WriteLine($"  Restart persisted MV2:  {result.RestartPersistenceVerified}");
+            Console.WriteLine($"  Restart target URL:     {result.RestartExtensionTargetUrl ?? "(none)"}");
             if (!result.Success)
             {
                 Console.WriteLine($"  Extension manager:      {result.ExtensionManagerState}");
