@@ -8,6 +8,14 @@ Version `3.2.0` was developed and tested end-to-end against Google Chrome `152.0
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
+## Related project
+
+This repository remains the focused, stable Manifest V2 RAM launcher. If you
+also want experimental native EasyList/ABP-style ad filtering, see
+[chrome-native-adblock](https://github.com/onlytrisdev/chrome-native-adblock).
+Its native network hook is Chrome-build-specific, so read that project's beta
+compatibility notes before using it.
+
 ## Packaged executable
 
 The recommended self-contained WinUI 3 GUI is:
