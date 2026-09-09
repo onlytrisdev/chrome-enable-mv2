@@ -54,6 +54,11 @@ internal static class Mv2GateLocator
         "80 BF 08 02 00 00 00 75 ?? 8B 49 68 83 F9 01 0F 85 ?? ?? ?? ?? " +
         "83 F8 05 74 ?? 83 F8 0A 74 ?? 4C 8D B4 24 80 00 00 00 " +
         "4C 89 F1 BA B3 1F 00 00");
+    private static readonly BytePattern UserMayInstallV6Pattern = BytePattern.Parse(
+        "83 7F 50 02 ?? ?? 48 8B 8F 28 02 00 00 8B 41 30 " +
+        "80 BF 08 02 00 00 00 75 ?? 8B 49 68 83 F9 01 0F 85 ?? ?? ?? ?? " +
+        "83 F8 05 74 ?? 83 F8 0A 74 ?? 4C 8D B4 24 80 00 00 00 " +
+        "4C 89 F1 BA 95 1F 00 00");
     private static readonly BytePattern EntryPattern = BytePattern.Parse(
         "83 7A 50 02 ?? ?? 48 8B 8A 28 02 00 00 8B 41 30 " +
         "80 BA 08 02 00 00 00 75 ?? 8B 49 68 83 F9 01 75 ?? " +
@@ -72,6 +77,9 @@ internal static class Mv2GateLocator
     private static readonly BytePattern StartupDisableBranchV5Pattern = BytePattern.Parse(
         "4C 8B 74 24 40 4D 39 FE 0F 85 ?? ?? ?? ?? " +
         "48 8B 4C 24 48 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
+    private static readonly BytePattern StartupDisableBranchV6Pattern = BytePattern.Parse(
+        "4C 8B 7C 24 48 4D 39 E7 0F 85 ?? ?? ?? ?? " +
+        "48 8B 4C 24 50 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
     private static readonly BytePattern StartupDisableTargetPattern = BytePattern.Parse(
         "48 89 C7 48 8D 5C 24 28 B9 04 00 00 00 E8 ?? ?? ?? ?? " +
         "48 89 44 24 28 4C 8D 40 04 4C 89 44 24 38 48 85 C0 ?? ?? ?? ?? ?? ?? " +
@@ -79,6 +87,9 @@ internal static class Mv2GateLocator
     private static readonly BytePattern StartupDisableTargetV5Pattern = BytePattern.Parse(
         "48 89 C7 48 8D 5C 24 28 B9 04 00 00 00 E8 ?? ?? ?? ?? " +
         "48 89 44 24 28 4C 8D 40 04 4C 89 44 24 38 C7 00 00 00 80 00");
+    private static readonly BytePattern StartupDisableTargetV6Pattern = BytePattern.Parse(
+        "48 89 C3 41 BD 01 00 00 00 4C 8D 74 24 40 B9 04 00 00 00 E8 ?? ?? ?? ?? " +
+        "48 89 44 24 28 4C 89 6C 24 38 C7 00 00 00 80 00");
     private static readonly BytePattern ReturnFalseBlock = BytePattern.Parse("31 C0 EB ??");
 
     public static LocatorResult Locate(PeImage image)
@@ -94,7 +105,7 @@ internal static class Mv2GateLocator
         var relativeMatches = EntryPattern.FindAll(sectionBytes);
         if (relativeMatches.Count == 0)
         {
-            return LocateSplitV5(image, text, sectionBytes);
+            return LocateSplit(image, text, sectionBytes);
         }
 
         var valid = new List<(int RawOffset, IReadOnlyList<string> Evidence)>();
@@ -197,7 +208,7 @@ internal static class Mv2GateLocator
         return new LocatorResult(true, target, relativeMatches.Count, valid.Count, diagnostics);
     }
 
-    private static LocatorResult LocateSplitV5(PeImage image, PeSection text, ReadOnlySpan<byte> sectionBytes)
+    private static LocatorResult LocateSplit(PeImage image, PeSection text, ReadOnlySpan<byte> sectionBytes)
     {
         var diagnostics = new List<string>();
         var relativeMatches = SplitEntryPattern.FindAll(sectionBytes);
@@ -219,7 +230,7 @@ internal static class Mv2GateLocator
         if (relativeMatches.Count != 2 || valid.Count != 2)
         {
             diagnostics.Add(
-                "Fail-closed: expected exactly two semantic copies of the Chrome 152 MV2 impact checker; " +
+                "Fail-closed: expected exactly two semantic copies of the split MV2 impact checker; " +
                 $"found {relativeMatches.Count} pattern matches and {valid.Count} valid copies.");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
@@ -236,7 +247,7 @@ internal static class Mv2GateLocator
         if (integerMatches.Count != 1)
         {
             diagnostics.Add(
-                "Fail-closed: expected exactly one Chrome 152 integer-argument MV2 impact checker; " +
+                "Fail-closed: expected exactly one split integer-argument MV2 impact checker; " +
                 $"found {integerMatches.Count}.");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
@@ -258,13 +269,17 @@ internal static class Mv2GateLocator
 
         var mustRemainDisabledMatches = MustRemainDisabledV5Pattern.FindAll(sectionBytes);
         var reEnableMatches = ReEnableV5Pattern.FindAll(sectionBytes);
-        var userMayInstallMatches = UserMayInstallV5Pattern.FindAll(sectionBytes);
+        var userMayInstallV6Matches = UserMayInstallV6Pattern.FindAll(sectionBytes);
+        var isV6 = userMayInstallV6Matches.Count == 1;
+        var userMayInstallMatches = isV6 ? userMayInstallV6Matches : UserMayInstallV5Pattern.FindAll(sectionBytes);
+        var chromeVersionLabel = isV6 ? "Chrome 153" : "Chrome 152";
+
         if (mustRemainDisabledMatches.Count != 1 ||
             reEnableMatches.Count != 1 ||
             userMayInstallMatches.Count != 1)
         {
             diagnostics.Add(
-                "Fail-closed: expected one Chrome 152 MustRemainDisabled clone, one re-enable clone, and one UserMayInstall clone; " +
+                $"Fail-closed: expected one {chromeVersionLabel} MustRemainDisabled clone, one re-enable clone, and one UserMayInstall clone; " +
                 $"found {mustRemainDisabledMatches.Count}, {reEnableMatches.Count}, and {userMayInstallMatches.Count}.");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
@@ -294,10 +309,12 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
+        var expectedResourceId = isV6 ? 8085 : 8115;
         if (!TryValidateUserMayInstallBranch(
                 image.Bytes,
                 text,
                 userMayInstallRawOffset + 4,
+                expectedResourceId,
                 out var userMayInstallEvidence,
                 out var userMayInstallReason))
         {
@@ -305,11 +322,13 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var startupDisableBranchMatches = StartupDisableBranchV5Pattern.FindAll(sectionBytes);
+        var startupDisableBranchPattern = isV6 ? StartupDisableBranchV6Pattern : StartupDisableBranchV5Pattern;
+        var startupDisableTargetPattern = isV6 ? StartupDisableTargetV6Pattern : StartupDisableTargetV5Pattern;
+        var startupDisableBranchMatches = startupDisableBranchPattern.FindAll(sectionBytes);
         if (startupDisableBranchMatches.Count != 1)
         {
             diagnostics.Add(
-                "Fail-closed: expected exactly one startup-disable branch for the Chrome 152 checker pair; " +
+                $"Fail-closed: expected exactly one startup-disable branch for the {chromeVersionLabel} checker pair; " +
                 $"found {startupDisableBranchMatches.Count}.");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
@@ -319,7 +338,7 @@ internal static class Mv2GateLocator
                 image.Bytes,
                 text,
                 startupDisableBranchRawOffset,
-                StartupDisableTargetV5Pattern,
+                startupDisableTargetPattern,
                 out var startupDisableEvidence,
                 out var startupDisableReason))
         {
@@ -377,13 +396,20 @@ internal static class Mv2GateLocator
         var allPatched = current == 0xeb && additionalEdits.All(edit => edit.ExpectedByte == edit.ReplacementByte);
         if (!allOriginal && !allPatched)
         {
-            diagnostics.Add("Fail-closed: Chrome 152 MV2 checker copies have inconsistent or unexpected patch state.");
+            diagnostics.Add($"Fail-closed: {chromeVersionLabel} MV2 checker copies have inconsistent or unexpected patch state.");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
+        var ruleId = isV6
+            ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
+            : "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5";
+        var description = isV6
+            ? "Force both Chrome 153 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
+            : "Force both Chrome 152 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch.";
+
         var target = new PatchTarget(
-            "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5",
-            "Force both Chrome 152 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch.",
+            ruleId,
+            description,
             primary.RawOffset,
             patchRawOffset,
             image.RawOffsetToRva(patchRawOffset),
@@ -401,7 +427,7 @@ internal static class Mv2GateLocator
                 .. startupDisableEvidence
             ]);
 
-        diagnostics.Add("Exactly two Chrome 152 checker copies passed all semantic checks and were grouped into one atomic patch set.");
+        diagnostics.Add($"Exactly two {chromeVersionLabel} checker copies passed all semantic checks and were grouped into one atomic patch set.");
         return new LocatorResult(true, target, relativeMatches.Count, valid.Count, diagnostics);
     }
 
@@ -631,6 +657,7 @@ internal static class Mv2GateLocator
         byte[] bytes,
         PeSection section,
         int branchRawOffset,
+        int expectedResourceId,
         out IReadOnlyList<string> evidence,
         out string reason)
     {
@@ -657,7 +684,7 @@ internal static class Mv2GateLocator
         }
 
         items.Add("UserMayInstall clone reads manifest version, type, and location before its MV2 rejection path");
-        items.Add("affected path loads localized resource 8115 for the unsupported-manifest installation error");
+        items.Add($"affected path loads localized resource {expectedResourceId} for the unsupported-manifest installation error");
         items.Add($"manifest-version branch reaches the normal UserMayLoad policy path at raw offset 0x{branchTarget:X}");
         return true;
     }

@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.2.0` đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `152.0.7977.65`. Rule dành cho Chrome 151 vẫn được giữ để tương thích với bản cũ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.3.0` đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `153.0.8010.37`. Rule dành cho Chrome 151 và 152 vẫn được giữ để tương thích với bản cũ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## Dự án liên quan
 
@@ -69,7 +69,7 @@ Build trọn bộ artifact phát hành:
 ## Lưu ý
 
 - Chỉ hỗ trợ Google Chrome x64 trên Windows.
-- Bản build hiện tại được xác nhận trên Chrome `152.0.7977.65`; rule Chrome 151 vẫn được giữ lại.
+- Bản build hiện tại được xác nhận trên Chrome `153.0.8010.37`; rule Chrome 151 và 152 vẫn được giữ lại.
 - Công cụ có thể tiếp tục chạy sau update nếu semantic signatures vẫn khớp duy nhất; nếu không, analyzer sẽ fail-closed và cần bổ sung rule mới.
 - Seed MAC của profile được tự tìm trong `resources.pak` bằng cách đối chiếu các MAC hiện có; không hard-code seed hoặc offset theo phiên bản.
 - Chỉ entry extension có lý do MV2 mới được sửa. Các lý do disable khác được giữ nguyên.

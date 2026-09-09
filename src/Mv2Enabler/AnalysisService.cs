@@ -28,7 +28,11 @@ internal static class AnalysisService
         var diagnostics = locator.Diagnostics.ToList();
         if (locator.Target is { } target)
         {
-            var expectedMajor = target.RuleId.EndsWith(".v5", StringComparison.Ordinal) ? "152." : "151.";
+            var expectedMajor = target.RuleId.EndsWith(".v6", StringComparison.Ordinal)
+                ? "153."
+                : target.RuleId.EndsWith(".v5", StringComparison.Ordinal)
+                    ? "152."
+                    : "151.";
             if (!version.StartsWith(expectedMajor, StringComparison.Ordinal))
             {
                 diagnostics.Insert(

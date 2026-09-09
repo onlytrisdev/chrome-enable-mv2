@@ -4,7 +4,7 @@ public sealed class InstalledChromeTests
 {
     [Fact]
     [Trait("Category", "Integration")]
-    public void InstalledChromeHasSafeChrome152Mv2PatchSet()
+    public void InstalledChromeHasSafeMv2PatchSet()
     {
         var installation = ChromeInstallationFinder.Find();
         var report = AnalysisService.Analyze(installation);
@@ -12,7 +12,10 @@ public sealed class InstalledChromeTests
         Assert.True(report.Success, string.Join(Environment.NewLine, report.Diagnostics));
         Assert.Equal(2, report.SemanticMatchCount);
         Assert.NotNull(report.Target);
-        Assert.Equal("chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5", report.Target.RuleId);
+        Assert.True(
+            report.Target.RuleId is "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6",
+            $"Unexpected rule ID: {report.Target.RuleId}");
         Assert.Equal(0x7f, report.Target.ExpectedByte);
         Assert.Equal(0xeb, report.Target.ReplacementByte);
         Assert.Equal(8, report.Target.AdditionalEdits.Count);

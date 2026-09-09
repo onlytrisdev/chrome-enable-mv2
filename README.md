@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.2.0` was developed and tested end-to-end against Google Chrome `152.0.7977.65` x64. The Chrome 151 rule remains available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.3.0` was developed and tested end-to-end against Google Chrome `153.0.8010.37` x64. The Chrome 151 and Chrome 152 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -43,7 +43,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - Does not use an expected file offset or RVA.
 - Enumerates every byte-pattern candidate and applies structural checks.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
-- Chrome 152 rule v5 locates both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
+- Chrome 152 rule v5 and Chrome 153 rule v6 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.
