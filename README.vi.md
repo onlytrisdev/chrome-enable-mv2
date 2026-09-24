@@ -6,14 +6,6 @@ Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, l�
 
 Phiên bản `3.4.0` đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `154.0.8037.58`. Rule dành cho Chrome 151, 152 và 153 vẫn được giữ để tương thích với bản cũ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
-## Dự án liên quan
-
-Repo này vẫn là launcher Manifest V2 ổn định và có phạm vi riêng. Nếu bạn muốn
-thử thêm chặn quảng cáo native theo kiểu EasyList/ABP, xem
-[chrome-native-adblock](https://github.com/onlytrisdev/chrome-native-adblock).
-Network hook của dự án đó phụ thuộc chính xác vào build Chrome, vì vậy hãy đọc
-phần tương thích beta trước khi dùng.
-
 ## GUI WinUI 3 (khuyên dùng)
 
 Chạy trực tiếp file self-contained:
