@@ -26,6 +26,17 @@ internal static class AnalysisService
         var sha256 = Convert.ToHexString(SHA256.HashData(image.Bytes));
         var version = FileVersionInfo.GetVersionInfo(installation.DllPath).FileVersion ?? installation.Version;
         var diagnostics = locator.Diagnostics.ToList();
+        if (!locator.Success)
+        {
+            var leads = SemanticCandidateProbe.Find(image);
+            diagnostics.Add(
+                $"Read-only semantic probe found {leads.Count} possible MV2 compare sites; no byte will be patched from probe results.");
+            foreach (var lead in leads.Take(12))
+            {
+                diagnostics.Add(
+                    $"Probe RVA 0x{lead.Rva:X}: {lead.Kind}, manifest field displacement 0x{lead.ManifestFieldOffset:X2}.");
+            }
+        }
         if (locator.Target is { } target)
         {
             var expectedMajor = target.RuleId.EndsWith(".v7", StringComparison.Ordinal)

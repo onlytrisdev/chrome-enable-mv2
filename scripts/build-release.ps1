@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "3.4.0"
+    [string]$Version = "3.5.0"
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$releaseRoot = Join-Path $projectRoot "artifacts\release"
-$guiPublish = Join-Path $releaseRoot "ChromeMv2Launcher-win-x64"
-$cliPublish = Join-Path $releaseRoot "mv2ctl-win-x64"
+$artifactRoot = Join-Path $projectRoot "artifacts"
+$releaseRoot = Join-Path $artifactRoot "release"
+$guiPublish = Join-Path $artifactRoot "win-x64-gui"
+$cliPublish = Join-Path $artifactRoot "win-x64-self-contained"
 
 $runningLauncher = Get-Process -Name "ChromeMv2Launcher" -ErrorAction SilentlyContinue
 if ($null -ne $runningLauncher)
@@ -18,13 +19,13 @@ if ($null -ne $runningLauncher)
 
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 
-$resolvedReleaseRoot = [System.IO.Path]::GetFullPath($releaseRoot).TrimEnd('\') + '\'
+$resolvedArtifactRoot = [System.IO.Path]::GetFullPath($artifactRoot).TrimEnd('\') + '\'
 foreach ($publishPath in @($guiPublish, $cliPublish))
 {
     $resolvedPublishPath = [System.IO.Path]::GetFullPath($publishPath)
-    if (-not $resolvedPublishPath.StartsWith($resolvedReleaseRoot, [System.StringComparison]::OrdinalIgnoreCase))
+    if (-not $resolvedPublishPath.StartsWith($resolvedArtifactRoot, [System.StringComparison]::OrdinalIgnoreCase))
     {
-        throw "Refusing to clean publish path outside the release directory: $resolvedPublishPath"
+        throw "Refusing to clean publish path outside the artifacts directory: $resolvedPublishPath"
     }
 
     Remove-Item -LiteralPath $resolvedPublishPath -Recurse -Force -ErrorAction SilentlyContinue
@@ -40,8 +41,10 @@ if ($LASTEXITCODE -ne 0) { throw "CLI publish failed." }
 
 Get-ChildItem -Path $guiPublish, $cliPublish -Filter "*.pdb" -File | Remove-Item -Force
 Copy-Item (Join-Path $projectRoot "README.vi.md") (Join-Path $guiPublish "README.vi.md") -Force
+Copy-Item (Join-Path $projectRoot "README.md") (Join-Path $guiPublish "README.md") -Force
 Copy-Item (Join-Path $projectRoot "SECURITY.md") (Join-Path $guiPublish "SECURITY.md") -Force
 Copy-Item (Join-Path $projectRoot "README.vi.md") (Join-Path $cliPublish "README.vi.md") -Force
+Copy-Item (Join-Path $projectRoot "README.md") (Join-Path $cliPublish "README.md") -Force
 Copy-Item (Join-Path $projectRoot "SECURITY.md") (Join-Path $cliPublish "SECURITY.md") -Force
 
 $guiZip = Join-Path $releaseRoot "ChromeMv2Launcher-v$Version-win-x64.zip"

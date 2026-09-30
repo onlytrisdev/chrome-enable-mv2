@@ -19,6 +19,7 @@ internal static class Program
             return args[0] switch
             {
                 "analyze" => RunAnalyze(args[1..]),
+                "probe" => RunProbe(args[1..]),
                 "launch" => RunLaunch(args[1..]),
                 "smoke-test" => RunSmokeTest(args[1..]),
                 "functional-test" => RunFunctionalTest(args[1..]),
@@ -48,6 +49,31 @@ internal static class Program
         }
 
         return report.Success ? 0 : 2;
+    }
+
+    private static int RunProbe(string[] args)
+    {
+        ParseCommonOptions(args, out var chromePath, out var dllPath, out var json, out _, out _);
+        var installation = ChromeInstallationFinder.Find(chromePath, dllPath);
+        var image = PeImage.Load(installation.DllPath);
+        var candidates = SemanticCandidateProbe.Find(image);
+        if (json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(candidates, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        else
+        {
+            Console.WriteLine($"READ-ONLY PROBE: {candidates.Count} possible MV2 compare sites");
+            foreach (var candidate in candidates.Take(30))
+            {
+                Console.WriteLine(
+                    $"  RVA 0x{candidate.Rva:X}: {candidate.Kind}; field displacement 0x{candidate.ManifestFieldOffset:X2}");
+            }
+
+            Console.WriteLine("Probe results are diagnostic only. Only 'analyze' can approve a verified patch set.");
+        }
+
+        return 0;
     }
 
     private static int RunLaunch(string[] args)
@@ -366,6 +392,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  mv2ctl analyze [--chrome PATH] [--dll PATH] [--json]");
+        Console.WriteLine("  mv2ctl probe   [--chrome PATH] [--dll PATH] [--json]  (diagnostic only)");
         Console.WriteLine("  mv2ctl launch  [--chrome PATH] [--timeout SECONDS] [--json] [-- CHROME_ARGS]");
         Console.WriteLine("  mv2ctl smoke-test [--chrome PATH] [--timeout SECONDS] [--json]");
         Console.WriteLine("  mv2ctl functional-test --extension PATH [--chrome PATH] [--timeout SECONDS] [--json]");

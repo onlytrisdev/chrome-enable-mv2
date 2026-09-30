@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.4.0` đã được phát triển và kiểm thử end-to-end trên Google Chrome x64 `154.0.8037.58`. Rule dành cho Chrome 151, 152 và 153 vẫn được giữ để tương thích với bản cũ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.5.0` giữ rule cho Google Chrome x64 `154.0.8037.58`, đồng thời bổ sung lối tắt một chạm và cập nhật qua GitHub Release. Rule dành cho Chrome 151, 152 và 153 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## GUI WinUI 3 (khuyên dùng)
 
@@ -15,6 +15,8 @@ Chạy trực tiếp file self-contained:
 ```
 
 Ứng dụng tự phân tích Chrome khi mở. Khi trạng thái chuyển sang **Sẵn sàng**, đóng mọi cửa sổ Chrome và bấm **Mở Chrome với Manifest V2**. Nút launch tự khóa khi Chrome đang chạy và tự bật lại sau khi Chrome đóng.
+
+Nút **Tạo lối tắt một chạm** tạo shortcut Desktop tự phân tích rồi mở Chrome với patch RAM. Ứng dụng tự kiểm tra GitHub Release khi mở; nếu có phiên bản mới, nút **Cài bản mới** sẽ tải ZIP GUI, xác minh SHA-256, giải nén vào thư mục phiên bản riêng trong `%LOCALAPPDATA%\ChromeMv2Launcher\versions`, cập nhật shortcut rồi mở ứng dụng mới. Khi Chrome chưa được hỗ trợ, có thể bấm **Mở Chrome bình thường**.
 
 GUI hỗ trợ `Tiếng Việt`, `English` và `简体中文`. Lần chạy đầu ứng dụng tự chọn theo ngôn ngữ Windows, sau đó ghi nhớ lựa chọn tại `%LOCALAPPDATA%\ChromeMv2Launcher\language.txt`.
 
@@ -63,6 +65,7 @@ Build trọn bộ artifact phát hành:
 - Chỉ hỗ trợ Google Chrome x64 trên Windows.
 - Bản build hiện tại được xác nhận trên Chrome `154.0.8037.58`; rule Chrome 151, 152 và 153 vẫn được giữ lại.
 - Công cụ có thể tiếp tục chạy sau update nếu semantic signatures vẫn khớp duy nhất; nếu không, analyzer sẽ fail-closed và cần bổ sung rule mới.
+- `mv2ctl probe` dò các vị trí có khả năng liên quan bằng heuristic rộng hơn, chỉ dùng để chẩn đoán; không tự patch từ kết quả probe.
 - Seed MAC của profile được tự tìm trong `resources.pak` bằng cách đối chiếu các MAC hiện có; không hard-code seed hoặc offset theo phiên bản.
 - Chỉ entry extension có lý do MV2 mới được sửa. Các lý do disable khác được giữ nguyên.
 - `mv2ctl.exe` chưa được ký code-signing nên Windows SmartScreen có thể cảnh báo đối với file tự build.

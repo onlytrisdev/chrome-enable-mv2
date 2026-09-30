@@ -121,23 +121,35 @@
                     </StackPanel>
                 </Button>
 
-                <Grid ColumnSpacing="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="10">
                     <Button Click="RefreshButton_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72C;" />
-                            <TextBlock x:Name="RefreshButtonText" />
-                        </StackPanel>
+                        <TextBlock x:Name="RefreshButtonText" />
                     </Button>
-                    <TextBlock x:Name="HintText"
-                               Grid.Column="1"
+                    <Button Click="CreateShortcutButton_Click">
+                        <TextBlock x:Name="CreateShortcutButtonText" />
+                    </Button>
+                    <Button Click="OpenChromeButton_Click">
+                        <TextBlock x:Name="OpenChromeButtonText" />
+                    </Button>
+                </StackPanel>
+                <TextBlock x:Name="HintText"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="CheckUpdateButton" Click="CheckUpdateButton_Click">
+                        <TextBlock x:Name="CheckUpdateButtonText" />
+                    </Button>
+                    <Button x:Name="InstallUpdateButton"
+                            Click="InstallUpdateButton_Click"
+                            Visibility="Collapsed"
+                            Style="{StaticResource AccentButtonStyle}">
+                        <TextBlock x:Name="InstallUpdateButtonText" />
+                    </Button>
+                    <TextBlock x:Name="UpdateStatusText"
                                VerticalAlignment="Center"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" />
-                </Grid>
+                </StackPanel>
 
                 <InfoBar x:Name="ResultInfoBar" IsClosable="True" IsOpen="False" />
             </StackPanel>

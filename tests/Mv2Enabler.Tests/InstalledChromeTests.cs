@@ -34,5 +34,9 @@ public sealed class InstalledChromeTests
         Assert.Equal(0xeb, report.Target.AdditionalEdits[5].ReplacementByte);
         Assert.All(report.Target.AdditionalEdits.Skip(6), edit => Assert.Equal(0x00, edit.ReplacementByte));
         Assert.Equal(PatchState.Original, report.Target.State);
+
+        var leads = SemanticCandidateProbe.Find(PeImage.Load(installation.DllPath));
+        Assert.Contains(leads, candidate => candidate.Rva == report.Target.PatchRva - 4);
+        Assert.True(leads.Count >= 2, "The read-only probe missed the MV2 checker family.");
     }
 }

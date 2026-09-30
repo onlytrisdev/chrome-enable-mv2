@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.4.0` was developed and tested end-to-end against Google Chrome `154.0.8037.58` x64. The Chrome 151, Chrome 152, and Chrome 153 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.5.0` retains the Chrome `154.0.8037.58` x64 rule and adds a one-click shortcut and GitHub Release update flow. The Chrome 151, Chrome 152, and Chrome 153 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -17,6 +17,8 @@ The recommended self-contained WinUI 3 GUI is:
 ```
 
 It analyzes Chrome on startup, monitors whether Chrome is running, repairs persisted MV2 profile state when necessary, and exposes the verified RAM launch as one primary button. GitHub Releases use a normal ZIP containing the self-contained app rather than a self-extracting executable, reducing opaque packaging and making every runtime file inspectable.
+
+Use **Create one-click shortcut** to add a Desktop shortcut that analyzes and launches Chrome with the RAM patch in one action. The app checks GitHub Releases at startup. When a newer version is published, **Install update** downloads the GUI ZIP, checks its SHA-256 digest, extracts it into a per-user versioned directory, updates the Desktop shortcut, and opens the new app. **Open Chrome normally** remains available if the current Chrome build has no verified patch.
 
 The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
 
@@ -34,6 +36,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - Scans only the executable `.text` PE section.
 - Does not use an expected file offset or RVA.
 - Enumerates every byte-pattern candidate and applies structural checks.
+- `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, and Chrome 154 rule v7 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
@@ -94,6 +97,7 @@ The test extension exercises a persistent MV2 background page, `browser_action`,
 
 ```text
 mv2ctl analyze [--chrome PATH] [--dll PATH] [--json]
+mv2ctl probe [--chrome PATH] [--dll PATH] [--json]
 mv2ctl launch [--chrome PATH] [--timeout SECONDS] [--json] [-- CHROME_ARGS]
 mv2ctl smoke-test [--chrome PATH] [--timeout SECONDS] [--json]
 mv2ctl functional-ui-test --extension PATH [--chrome PATH] [--timeout SECONDS] [--json]

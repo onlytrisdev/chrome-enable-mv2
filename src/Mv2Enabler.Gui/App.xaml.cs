@@ -22,6 +22,7 @@ namespace Mv2Enabler_Gui;
 public partial class App : Application
 {
     private Window? _window;
+    internal static bool AutoLaunchRequested { get; private set; }
 
     /// <summary>
     /// Initializes the singleton application object.  This is the first line of authored code
@@ -38,6 +39,9 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        AutoLaunchRequested = Environment.GetCommandLineArgs()
+            .Skip(1)
+            .Contains("--auto-launch", StringComparer.OrdinalIgnoreCase);
         _window = new MainWindow();
         _window.Activate();
     }

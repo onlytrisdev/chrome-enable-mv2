@@ -20,8 +20,11 @@ public sealed partial class MainPage : Page
     private readonly DispatcherTimer _processTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private ChromeInstallation? _installation;
     private AnalysisReport? _analysis;
+    private ReleaseUpdate? _availableUpdate;
     private bool _busy;
     private bool _analysisFailed;
+    private bool _checkingUpdate;
+    private bool _installingUpdate;
 
     public MainPage()
     {
@@ -37,7 +40,24 @@ public sealed partial class MainPage : Page
     private async void MainPage_Loaded(object sender, RoutedEventArgs e)
     {
         _processTimer.Start();
+        _ = CheckUpdateAsync(showCurrentStatus: false);
+        if (App.AutoLaunchRequested)
+        {
+            OpenExtensionsCheckBox.IsChecked = false;
+        }
+
         await AnalyzeAsync();
+        if (App.AutoLaunchRequested)
+        {
+            if (_analysis?.Success == true)
+            {
+                await LaunchAsync();
+            }
+            else
+            {
+                ShowMessage(InfoBarSeverity.Warning, T("AutoLaunchUnavailable"), T("UnsupportedChrome"));
+            }
+        }
     }
 
     private void MainPage_Unloaded(object sender, RoutedEventArgs e) => _processTimer.Stop();
@@ -110,7 +130,9 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private async void LaunchButton_Click(object sender, RoutedEventArgs e)
+    private async void LaunchButton_Click(object sender, RoutedEventArgs e) => await LaunchAsync();
+
+    private async Task LaunchAsync()
     {
         if (_installation is null || _analysis?.Target is null || !_analysis.Success)
         {
@@ -164,6 +186,99 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private async void CreateShortcutButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var executable = Environment.ProcessPath
+                ?? throw new InvalidOperationException("The launcher path is unavailable.");
+            var path = await Task.Run(() => DesktopShortcutService.CreateForLauncher(executable));
+            ShowMessage(InfoBarSeverity.Success, T("ShortcutCreated"), path);
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(InfoBarSeverity.Error, T("ShortcutError"), exception.Message);
+        }
+    }
+
+    private void OpenChromeButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var chrome = _installation?.ExecutablePath ?? ChromeInstallationFinder.Find().ExecutablePath;
+            Process.Start(new ProcessStartInfo(chrome) { UseShellExecute = true });
+            ShowMessage(InfoBarSeverity.Informational, T("NormalChromeOpened"), T("NormalChromeHint"));
+        }
+        catch (Exception exception)
+        {
+            ShowMessage(InfoBarSeverity.Error, T("CannotOpenChrome"), exception.Message);
+        }
+    }
+
+    private async void CheckUpdateButton_Click(object sender, RoutedEventArgs e) =>
+        await CheckUpdateAsync(showCurrentStatus: true);
+
+    private async Task CheckUpdateAsync(bool showCurrentStatus)
+    {
+        if (_checkingUpdate || _installingUpdate)
+        {
+            return;
+        }
+
+        _checkingUpdate = true;
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = T("CheckingUpdates");
+        try
+        {
+            var version = typeof(App).Assembly.GetName().Version
+                ?? throw new InvalidOperationException("The launcher version is unavailable.");
+            _availableUpdate = await ReleaseUpdateService.CheckAsync(version);
+            InstallUpdateButton.Visibility = _availableUpdate is null ? Visibility.Collapsed : Visibility.Visible;
+            UpdateStatusText.Text = _availableUpdate is null
+                ? (showCurrentStatus ? T("UpToDate") : string.Empty)
+                : T("UpdateAvailable", _availableUpdate.Version);
+        }
+        catch (Exception exception)
+        {
+            UpdateStatusText.Text = showCurrentStatus ? T("UpdateCheckFailed", exception.Message) : string.Empty;
+        }
+        finally
+        {
+            _checkingUpdate = false;
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void InstallUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_availableUpdate is null || _installingUpdate)
+        {
+            return;
+        }
+
+        _installingUpdate = true;
+        InstallUpdateButton.IsEnabled = false;
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = T("InstallingUpdate", _availableUpdate.Version);
+        try
+        {
+            var executable = await ReleaseUpdateService.InstallAsync(_availableUpdate);
+            await Task.Run(() => DesktopShortcutService.CreateForLauncher(executable));
+            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = true });
+            Application.Current.Exit();
+        }
+        catch (Exception exception)
+        {
+            UpdateStatusText.Text = T("UpdateInstallFailed", exception.Message);
+        }
+        finally
+        {
+            _installingUpdate = false;
+            InstallUpdateButton.IsEnabled = true;
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
     private void UpdateProcessState()
     {
         var processes = Process.GetProcessesByName("chrome");
@@ -174,7 +289,8 @@ public sealed partial class MainPage : Page
                 ? T("ChromeRunning", processes.Length)
                 : T("ChromeClosed");
             ProcessStatusDot.Background = Brush(running ? Colors.Gold : Colors.LimeGreen);
-            LaunchButton.IsEnabled = !_busy && !running && _analysis?.Success == true && _analysis.Target is not null;
+            LaunchButton.IsEnabled = !_busy && !_installingUpdate && !running &&
+                _analysis?.Success == true && _analysis.Target is not null;
         }
         finally
         {
@@ -235,6 +351,10 @@ public sealed partial class MainPage : Page
         OpenExtensionsCheckBox.Content = T("OpenExtensions");
         LaunchButtonText.Text = T("LaunchButton");
         RefreshButtonText.Text = T("Refresh");
+        CreateShortcutButtonText.Text = T("CreateShortcut");
+        OpenChromeButtonText.Text = T("OpenChromeNormally");
+        CheckUpdateButtonText.Text = T("CheckUpdates");
+        InstallUpdateButtonText.Text = T("InstallUpdate");
         HintText.Text = T("Hint");
         TechnicalDetailsExpander.Header = T("TechnicalDetails");
 
