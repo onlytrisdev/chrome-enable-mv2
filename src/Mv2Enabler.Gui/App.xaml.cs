@@ -23,6 +23,7 @@ public partial class App : Application
 {
     private Window? _window;
     internal static bool AutoLaunchRequested { get; private set; }
+    internal static IReadOnlyList<string> ChromeArguments { get; private set; } = [];
 
     /// <summary>
     /// Initializes the singleton application object.  This is the first line of authored code
@@ -39,8 +40,10 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        AutoLaunchRequested = Environment.GetCommandLineArgs()
-            .Skip(1)
+        var arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        var separator = Array.IndexOf(arguments, "--");
+        ChromeArguments = separator >= 0 ? arguments[(separator + 1)..] : [];
+        AutoLaunchRequested = (separator >= 0 ? arguments[..separator] : arguments)
             .Contains("--auto-launch", StringComparer.OrdinalIgnoreCase);
         _window = new MainWindow();
         _window.Activate();

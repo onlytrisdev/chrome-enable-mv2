@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.5.0` retains the Chrome `154.0.8037.58` x64 rule and adds a one-click shortcut and GitHub Release update flow. The Chrome 151, Chrome 152, and Chrome 153 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.6.0` adds support for Google Chrome `155.0.8059.40` x64 and closes the GUI automatically after a successful browser launch. The Chrome 151 through 154 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -19,6 +19,8 @@ The recommended self-contained WinUI 3 GUI is:
 It analyzes Chrome on startup, monitors whether Chrome is running, repairs persisted MV2 profile state when necessary, and exposes the verified RAM launch as one primary button. GitHub Releases use a normal ZIP containing the self-contained app rather than a self-extracting executable, reducing opaque packaging and making every runtime file inspectable.
 
 Use **Create one-click shortcut** to add a Desktop shortcut that analyzes and launches Chrome with the RAM patch in one action. The app checks GitHub Releases at startup. When a newer version is published, **Install update** downloads the GUI ZIP, checks its SHA-256 digest, extracts it into a per-user versioned directory, updates the Desktop shortcut, and opens the new app. **Open Chrome normally** remains available if the current Chrome build has no verified patch.
+
+After a successful patched or normal launch, the GUI exits immediately while Chrome keeps running. This applies to both the launch button and the Desktop shortcut. If analysis or launch fails, the GUI stays open to display the error. Advanced users can pass Chrome arguments after `--`, for example `ChromeMv2Launcher.exe --auto-launch -- --user-data-dir=E:\Chrome-MV2-Profile`.
 
 The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
 
@@ -38,7 +40,8 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - Enumerates every byte-pattern candidate and applies structural checks.
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
-- Chrome 152 rule v5, Chrome 153 rule v6, and Chrome 154 rule v7 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
+- Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
+- Rule v8 verifies the normal policy call, the relocated unsupported-manifest error path, and their shared callback before accepting Chrome 155's install gate.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.
@@ -60,6 +63,8 @@ The patch engine lives in `src\Mv2Enabler.Core`; both the CLI and WinUI 3 app re
 The automated smoke test creates a uniquely named profile below `%TEMP%\mv2ctl-smoke`, launches headless Chrome, applies and verifies the RAM patch, confirms Chrome remains alive, stops only the process tree it created, and removes that temporary profile.
 
 The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It then closes Chrome, launches the same temporary profile again through the RAM patcher, and requires the persistent MV2 background page to return. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
+
+After packaging, run `.\scripts\test-gui-launch.ps1` to verify automatic shortcut launch, manual launch, normal Chrome launch, and the Chrome-already-running error. It uses temporary profiles and checks that the launcher exits while Chrome's DevTools endpoint remains available.
 
 ## Launch Chrome
 

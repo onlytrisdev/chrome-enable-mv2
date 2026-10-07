@@ -77,6 +77,16 @@ internal static class Mv2GateLocator
         "80 BF 08 02 00 00 00 75 ?? 8B 89 88 00 00 00 83 F9 01 0F 85 ?? ?? ?? ?? " +
         "83 F8 05 74 ?? 83 F8 0A 74 ?? 4C 8D B4 24 80 00 00 00 " +
         "4C 89 F1 BA B3 1F 00 00");
+    private static readonly BytePattern UserMayInstallV8Pattern = BytePattern.Parse(
+        "83 7F 50 02 ?? ?? 48 8B 8F 28 02 00 00 8B 41 50 " +
+        "80 BF 08 02 00 00 00 75 ?? 8B 89 88 00 00 00 83 F9 01 0F 85 ?? ?? ?? ?? " +
+        "83 F8 05 74 ?? 83 F8 0A 0F 85 ?? ?? ?? ?? " +
+        "4C 8D B4 24 50 02 00 00 48 89 D9 48 89 FA 4D 89 F0 E8 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV8ErrorPattern = BytePattern.Parse(
+        "4C 8D B4 24 50 02 00 00 4C 89 F1 BA C1 1F 00 00 E8 ?? ?? ?? ?? " +
+        "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV8TypesPattern = BytePattern.Parse(
+        "83 F9 08 0F 84 ?? ?? ?? ?? 83 F9 03 0F 85 ?? ?? ?? ?? E9 ?? ?? ?? ??");
     private static readonly BytePattern EntryPattern = BytePattern.Parse(
         "83 7A 50 02 ?? ?? 48 8B 8A 28 02 00 00 8B 41 30 " +
         "80 BA 08 02 00 00 00 75 ?? 8B 49 68 83 F9 01 75 ?? " +
@@ -288,6 +298,8 @@ internal static class Mv2GateLocator
         var integerCurrent = image.Bytes[integerPatchRawOffset];
 
         var userMayInstallV7Matches = isV7 ? UserMayInstallV7Pattern.FindAll(sectionBytes) : [];
+        var userMayInstallV8Matches = isV7 ? UserMayInstallV8Pattern.FindAll(sectionBytes) : [];
+        var isV8 = userMayInstallV8Matches.Count == 1;
         var userMayInstallV6Matches = !isV7 ? UserMayInstallV6Pattern.FindAll(sectionBytes) : [];
         var isV6 = !isV7 && userMayInstallV6Matches.Count == 1;
 
@@ -298,11 +310,11 @@ internal static class Mv2GateLocator
             ? ReEnableV7Pattern.FindAll(sectionBytes)
             : ReEnableV5Pattern.FindAll(sectionBytes);
         var userMayInstallMatches = isV7
-            ? userMayInstallV7Matches
+            ? userMayInstallV7Matches.Concat(userMayInstallV8Matches).ToList()
             : isV6
                 ? userMayInstallV6Matches
                 : UserMayInstallV5Pattern.FindAll(sectionBytes);
-        var chromeVersionLabel = isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
+        var chromeVersionLabel = isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
 
         if (mustRemainDisabledMatches.Count != 1 ||
             reEnableMatches.Count != 1 ||
@@ -340,13 +352,15 @@ internal static class Mv2GateLocator
         }
 
         var expectedResourceId = isV6 ? 8085 : 8115;
-        if (!TryValidateUserMayInstallBranch(
-                image.Bytes,
-                text,
-                userMayInstallRawOffset + 4,
-                expectedResourceId,
-                out var userMayInstallEvidence,
-                out var userMayInstallReason))
+        IReadOnlyList<string> userMayInstallEvidence;
+        string userMayInstallReason;
+        var userMayInstallValid = isV8
+            ? TryValidateUserMayInstallV8(
+                image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason)
+            : TryValidateUserMayInstallBranch(
+                image.Bytes, text, userMayInstallRawOffset + 4, expectedResourceId,
+                out userMayInstallEvidence, out userMayInstallReason);
+        if (!userMayInstallValid)
         {
             diagnostics.Add($"Rejected UserMayInstall clone: {userMayInstallReason}");
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
@@ -430,12 +444,16 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var ruleId = isV7
+        var ruleId = isV8
+            ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v8"
+            : isV7
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v7"
             : isV6
                 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
                 : "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5";
-        var description = isV7
+        var description = isV8
+            ? "Force both Chrome 155 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
+            : isV7
             ? "Force both Chrome 154 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
             : isV6
                 ? "Force both Chrome 153 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
@@ -720,6 +738,78 @@ internal static class Mv2GateLocator
         items.Add("UserMayInstall clone reads manifest version, type, and location before its MV2 rejection path");
         items.Add($"affected path loads localized resource {expectedResourceId} for the unsupported-manifest installation error");
         items.Add($"manifest-version branch reaches the normal UserMayLoad policy path at raw offset 0x{branchTarget:X}");
+        return true;
+    }
+
+    internal static bool TryValidateUserMayInstallV8(
+        byte[] bytes,
+        PeSection section,
+        int rawOffset,
+        out IReadOnlyList<string> evidence,
+        out string reason)
+    {
+        evidence = [];
+        reason = "Chrome 155 UserMayInstall control flow did not match.";
+        var sectionEnd = (long)section.RawOffset + section.RawSize;
+        bool InSection(long offset, int length) => offset >= section.RawOffset &&
+            offset + length <= sectionEnd && offset + length <= bytes.Length;
+        long NearTarget(int offset, int instructionLength) =>
+            (long)offset + instructionLength + BitConverter.ToInt32(bytes, offset + instructionLength - 4);
+
+        if (!InSection(rawOffset, UserMayInstallV8Pattern.Length) ||
+            !UserMayInstallV8Pattern.MatchesAt(bytes, rawOffset) ||
+            bytes[rawOffset + 4] is not 0x7f and not 0xeb)
+        {
+            return false;
+        }
+
+        // MV3 and component locations must converge on the normal policy call.
+        var normalPath = rawOffset + 54;
+        if (rawOffset + 6 + unchecked((sbyte)bytes[rawOffset + 5]) != normalPath ||
+            rawOffset + 45 + unchecked((sbyte)bytes[rawOffset + 44]) != normalPath ||
+            rawOffset + 25 + unchecked((sbyte)bytes[rawOffset + 24]) != rawOffset + 40)
+        {
+            reason = "manifest-version/component branches do not converge on the normal policy path";
+            return false;
+        }
+
+        var typeTarget = NearTarget(rawOffset + 34, 6);
+        if (!InSection(typeTarget, UserMayInstallV8TypesPattern.Length) ||
+            !UserMayInstallV8TypesPattern.MatchesAt(bytes, (int)typeTarget) ||
+            NearTarget((int)typeTarget + 3, 6) != rawOffset + 40 ||
+            NearTarget((int)typeTarget + 12, 6) != normalPath ||
+            NearTarget((int)typeTarget + 18, 5) != rawOffset + 40)
+        {
+            reason = "manifest-type branches do not preserve the verified Extension/LoginScreenExtension/UserScript paths";
+            return false;
+        }
+
+        var errorTarget = NearTarget(rawOffset + 48, 6);
+        if (!InSection(errorTarget, UserMayInstallV8ErrorPattern.Length) ||
+            !UserMayInstallV8ErrorPattern.MatchesAt(bytes, (int)errorTarget))
+        {
+            reason = "affected path does not reach the verified unsupported-manifest error resource 8129";
+            return false;
+        }
+
+        var normalCallTarget = NearTarget(rawOffset + 71, 5);
+        var errorCallTarget = NearTarget((int)errorTarget + 16, 5);
+        var sharedCallback = NearTarget((int)errorTarget + 35, 5);
+        if (!InSection(normalCallTarget, 1) || !InSection(errorCallTarget, 1) ||
+            sharedCallback != rawOffset + 89 ||
+            !InSection(sharedCallback, 5) ||
+            !bytes.AsSpan((int)sharedCallback, 5).SequenceEqual((ReadOnlySpan<byte>)[0x41, 0x80, 0x7e, 0x17, 0x00]))
+        {
+            reason = "policy/error calls or the shared callback leave the verified control flow";
+            return false;
+        }
+
+        evidence = [
+            "Chrome 155 UserMayInstall manifest/type/location branches converge on the normal UserMayLoad policy call",
+            "affected path constructs unsupported-manifest error resource 8129 and rejoins the shared callback",
+            $"manifest-version branch reaches the normal policy path at raw offset 0x{normalPath:X}"
+        ];
+        reason = string.Empty;
         return true;
     }
 

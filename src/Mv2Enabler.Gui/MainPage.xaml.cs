@@ -143,33 +143,25 @@ public sealed partial class MainPage : Page
         var installation = _installation;
         var target = _analysis.Target;
         IReadOnlyList<string> chromeArguments = OpenExtensionsCheckBox.IsChecked == true
-            ? ["chrome://extensions/"]
-            : [];
+            ? [.. App.ChromeArguments, "chrome://extensions/"]
+            : App.ChromeArguments;
 
         SetBusy(true);
         ResultInfoBar.IsOpen = false;
+        var launched = false;
         try
         {
-            var outcome = await Task.Run(() =>
+            await Task.Run(() =>
             {
                 ChromeDebugLauncher.EnsureChromeIsNotRunning();
-                var profileRepair = ChromeProfileRepair.RepairBeforeLaunch(installation, chromeArguments);
-                var launch = ChromeDebugLauncher.Launch(
+                ChromeProfileRepair.RepairBeforeLaunch(installation, chromeArguments);
+                ChromeDebugLauncher.Launch(
                     installation,
                     target,
                     chromeArguments,
                     TimeSpan.FromSeconds(20));
-                return (ProfileRepair: profileRepair, Launch: launch);
             });
-
-            var launchMessage = outcome.ProfileRepair.ExtensionsReEnabled > 0
-                ? T("LaunchSuccessWithRepair", outcome.Launch.ProcessId, outcome.ProfileRepair.ExtensionsReEnabled)
-                : T("LaunchSuccess", outcome.Launch.ProcessId);
-            ShowMessage(
-                InfoBarSeverity.Success,
-                T("LaunchSuccessTitle"),
-                launchMessage);
-            DetailsTextBox.Text = FormatLaunch(outcome.ProfileRepair, outcome.Launch) + Environment.NewLine + Environment.NewLine + DetailsTextBox.Text;
+            launched = true;
         }
         catch (Exception exception)
         {
@@ -183,6 +175,11 @@ public sealed partial class MainPage : Page
         {
             SetBusy(false);
             UpdateProcessState();
+        }
+
+        if (launched)
+        {
+            Application.Current.Exit();
         }
     }
 
@@ -206,8 +203,13 @@ public sealed partial class MainPage : Page
         try
         {
             var chrome = _installation?.ExecutablePath ?? ChromeInstallationFinder.Find().ExecutablePath;
-            Process.Start(new ProcessStartInfo(chrome) { UseShellExecute = true });
-            ShowMessage(InfoBarSeverity.Informational, T("NormalChromeOpened"), T("NormalChromeHint"));
+            var startInfo = new ProcessStartInfo(chrome) { UseShellExecute = true };
+            foreach (var argument in App.ChromeArguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+            Process.Start(startInfo);
+            Application.Current.Exit();
         }
         catch (Exception exception)
         {
@@ -423,16 +425,4 @@ public sealed partial class MainPage : Page
         return builder.ToString().TrimEnd();
     }
 
-    private static string FormatLaunch(ProfileRepairResult repair, LaunchResult launch)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine("LAUNCH: SUCCESS");
-        builder.AppendLine($"PID: {launch.ProcessId}");
-        builder.AppendLine($"Remote address: {launch.RemoteAddress}");
-        builder.AppendLine($"Primary byte: 0x{launch.OriginalByte:X2} -> 0x{launch.ReplacementByte:X2}");
-        builder.AppendLine($"Profiles scanned: {repair.ProfilesScanned}");
-        builder.AppendLine($"Extensions re-enabled: {repair.ExtensionsReEnabled}");
-        builder.AppendLine("On-disk chrome.dll was not modified.");
-        return builder.ToString().TrimEnd();
-    }
 }

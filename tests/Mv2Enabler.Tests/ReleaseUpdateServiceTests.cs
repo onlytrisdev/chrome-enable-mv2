@@ -99,7 +99,9 @@ public sealed class ReleaseUpdateServiceTests
     public void PublishedGuiArchiveExtractsAsExpectedVersion()
     {
         var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        var archivePath = Path.Combine(projectRoot, "artifacts", "release", "ChromeMv2Launcher-v3.5.0-win-x64.zip");
+        var version = typeof(ReleaseUpdateService).Assembly.GetName().Version!;
+        var archivePath = Path.Combine(projectRoot, "artifacts", "release",
+            $"ChromeMv2Launcher-v{version.Major}.{version.Minor}.{version.Build}-win-x64.zip");
         if (!File.Exists(archivePath))
         {
             return;
@@ -113,7 +115,7 @@ public sealed class ReleaseUpdateServiceTests
             var launcher = Path.Combine(stage, "ChromeMv2Launcher.exe");
             Assert.True(File.Exists(launcher));
             Assert.True(File.Exists(Path.Combine(stage, "Mv2Enabler.Core.dll")));
-            Assert.Equal("3.5.0.0", FileVersionInfo.GetVersionInfo(launcher).FileVersion);
+            Assert.Equal(version.ToString(), FileVersionInfo.GetVersionInfo(launcher).FileVersion);
         }
         finally
         {

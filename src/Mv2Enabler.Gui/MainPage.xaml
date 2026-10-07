@@ -128,7 +128,7 @@
                     <Button Click="CreateShortcutButton_Click">
                         <TextBlock x:Name="CreateShortcutButtonText" />
                     </Button>
-                    <Button Click="OpenChromeButton_Click">
+                    <Button x:Name="OpenChromeButton" Click="OpenChromeButton_Click">
                         <TextBlock x:Name="OpenChromeButtonText" />
                     </Button>
                 </StackPanel>

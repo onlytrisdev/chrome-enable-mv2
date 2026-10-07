@@ -39,7 +39,9 @@ internal static class AnalysisService
         }
         if (locator.Target is { } target)
         {
-            var expectedMajor = target.RuleId.EndsWith(".v7", StringComparison.Ordinal)
+            var expectedMajor = target.RuleId.EndsWith(".v8", StringComparison.Ordinal)
+                ? "155."
+                : target.RuleId.EndsWith(".v7", StringComparison.Ordinal)
                 ? "154."
                 : target.RuleId.EndsWith(".v6", StringComparison.Ordinal)
                     ? "153."
