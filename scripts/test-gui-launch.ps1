@@ -16,11 +16,13 @@ $testRoot = Join-Path $temporaryBase ('mv2gui-test-' + [Guid]::NewGuid().ToStrin
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $guiProcesses = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
 
-function Start-TestGui([string]$Mode, [string]$Profile)
+function Start-TestGui([string]$Mode, [string]$Profile, [string]$Url = 'about:blank')
 {
     $arguments = @('--', ('--user-data-dir="' + $Profile + '"'),
-        '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', 'about:blank')
+        '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', $Url)
     if ($Mode -eq 'auto') { $arguments = @('--auto-launch') + $arguments }
+    if ($Mode -eq 'show-ui') { $arguments = @('--show-ui') + $arguments }
+    if ($Mode -eq 'direct') { $arguments = $arguments[1..($arguments.Count - 1)] }
     $gui = Start-Process -FilePath $launcher -ArgumentList $arguments -WindowStyle Hidden -PassThru
     $guiProcesses.Add($gui)
     return $gui
@@ -64,6 +66,52 @@ function Assert-GuiExited([System.Diagnostics.Process]$Gui)
 {
     if (-not $Gui.WaitForExit(20000)) { throw "Launcher PID $($Gui.Id) did not exit after launch." }
     if ($Gui.ExitCode -ne 0) { throw "Launcher exited with code $($Gui.ExitCode)." }
+}
+
+function Assert-WindowlessExit([System.Diagnostics.Process]$Gui)
+{
+    $condition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $Gui.Id)
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while (-not $Gui.HasExited -and $timer.Elapsed.TotalSeconds -lt 20)
+    {
+        $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+            [System.Windows.Automation.TreeScope]::Children, $condition)
+        if ($windows.Count -ne 0) { throw 'The reuse path unexpectedly displayed a patcher window.' }
+        Start-Sleep -Milliseconds 50
+    }
+    Assert-GuiExited $Gui
+}
+
+function Assert-PageOpened([string]$Profile, [string]$Url)
+{
+    $port = [int](Get-Content -LiteralPath (Join-Path $Profile 'DevToolsActivePort') -TotalCount 1)
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 10)
+    {
+        $pages = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2
+        if ($pages | Where-Object { $_.type -eq 'page' -and $_.url -eq $Url }) { return }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "The requested URL was not opened in the existing session: $Url"
+}
+
+function Assert-CloseChromeError([System.Diagnostics.Process]$Gui)
+{
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 15)
+    {
+        if ($Gui.HasExited) { throw 'GUI closed instead of displaying the Chrome-already-running error.' }
+        $bar = Find-Control $Gui.Id 'ResultInfoBar'
+        if ($null -ne $bar)
+        {
+            $text = $bar.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }
+            if (($text -join ' ') -match 'đóng hoàn toàn|Close every Chrome|完全关闭') { return }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw 'The expected Chrome-already-running error was not displayed.'
 }
 
 function Assert-BrowserAlive([string]$Profile)
@@ -119,29 +167,46 @@ function Stop-TestBrowsers
 
 try
 {
-    $autoProfile = Join-Path $testRoot 'auto'
+    $autoProfile = Join-Path $testRoot 'auto with spaces'
     $autoGui = Start-TestGui 'auto' $autoProfile
     Assert-GuiExited $autoGui
     $browserVersion = Assert-BrowserAlive $autoProfile
     Write-Host "PASS: shortcut launch exits the GUI while $browserVersion remains alive."
 
+    $rootBefore = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.Contains($autoProfile) -and -not $_.CommandLine.Contains('--type=')
+    }).ProcessId
+    foreach ($mode in @('auto', 'direct'))
+    {
+        $url = 'data:text/html,mv2-reuse-' + $mode
+        $reuse = Start-TestGui $mode $autoProfile $url
+        Assert-WindowlessExit $reuse
+        [void](Assert-BrowserAlive $autoProfile)
+        Assert-PageOpened $autoProfile $url
+        $rootAfter = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object {
+            $_.CommandLine -and $_.CommandLine.Contains($autoProfile) -and -not $_.CommandLine.Contains('--type=')
+        }).ProcessId
+        if (@($rootBefore).Count -ne 1 -or @($rootAfter).Count -ne 1 -or $rootBefore -ne $rootAfter)
+        {
+            throw 'Session reuse did not preserve the original browser root process.'
+        }
+        Write-Host "PASS: $mode invocation forwards the URL to the same patched browser without showing GUI."
+    }
+
+    $settings = Start-TestGui 'show-ui' $autoProfile
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 15 -and -not (Find-Control $settings.Id 'OpenChromeButton'))
+    {
+        if ($settings.HasExited) { throw '--show-ui exited instead of showing settings.' }
+        Start-Sleep -Milliseconds 100
+    }
+    if (-not (Find-Control $settings.Id 'OpenChromeButton')) { throw '--show-ui did not display the GUI.' }
+    $settings.Kill(); [void]$settings.WaitForExit(5000)
+    Write-Host 'PASS: --show-ui keeps settings accessible while patched Chrome is running.'
+
     $errorProfile = Join-Path $testRoot 'error'
     $errorGui = Start-TestGui 'auto' $errorProfile
-    $errorShown = $false
-    $timer = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($timer.Elapsed.TotalSeconds -lt 15 -and -not $errorShown)
-    {
-        if ($errorGui.HasExited) { throw 'GUI closed instead of displaying the Chrome-already-running error.' }
-        $bar = Find-Control $errorGui.Id 'ResultInfoBar'
-        if ($null -ne $bar)
-        {
-            $text = $bar.FindAll([System.Windows.Automation.TreeScope]::Descendants,
-                [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }
-            $errorShown = ($text -join ' ') -match 'đóng hoàn toàn|Close every Chrome|完全关闭'
-        }
-        if (-not $errorShown) { Start-Sleep -Milliseconds 100 }
-    }
-    if (-not $errorShown) { throw 'The expected Chrome-already-running error was not displayed.' }
+    Assert-CloseChromeError $errorGui
     if (Test-Path -LiteralPath $errorProfile) { throw 'The failed launch unexpectedly created a browser profile.' }
     Write-Host 'PASS: failed launch keeps the GUI open and displays the close-Chrome error.'
     $errorGui.Kill(); [void]$errorGui.WaitForExit(5000)
@@ -156,6 +221,14 @@ try
         Assert-GuiExited $gui
         [void](Assert-BrowserAlive $profile)
         Write-Host "PASS: $mode launch exits the GUI and preserves the browser."
+        if ($mode -eq 'normal')
+        {
+            $unpatched = Start-TestGui 'auto' $profile
+            Assert-CloseChromeError $unpatched
+            [void](Assert-BrowserAlive $profile)
+            $unpatched.Kill(); [void]$unpatched.WaitForExit(5000)
+            Write-Host 'PASS: ordinary unpatched Chrome with the same profile is not silently reused.'
+        }
         Stop-TestBrowsers
     }
 }

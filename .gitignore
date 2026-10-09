@@ -3,3 +3,4 @@ obj/
 .tmp/
 artifacts/
 TestResults/
+work/

@@ -286,7 +286,7 @@ internal static class ChromeDebugLauncher
         return patched;
     }
 
-    private static IReadOnlyList<PatchEdit> GetEdits(PatchTarget target)
+    internal static IReadOnlyList<PatchEdit> GetEdits(PatchTarget target)
     {
         return [
             new PatchEdit(target.PatchRawOffset, target.PatchRva, target.ExpectedByte, target.ReplacementByte),

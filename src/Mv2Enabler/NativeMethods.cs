@@ -17,6 +17,7 @@ internal static class NativeMethods
     internal const uint ExceptionBreakpoint = 0x80000003;
     internal const uint PageExecuteReadWrite = 0x40;
     internal const uint ProcessVmRead = 0x0010;
+    internal const uint ProcessQueryLimitedInformation = 0x1000;
     internal const uint ProcessVmWrite = 0x0020;
     internal const uint ProcessVmOperation = 0x0008;
     internal const uint BmClick = 0x00f5;
@@ -194,6 +195,20 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern IntPtr OpenProcess(uint desiredAccess, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder path, ref uint size);
+
+    [DllImport("ntdll.dll")]
+    internal static extern int NtQueryInformationProcess(IntPtr process, int informationClass,
+        IntPtr information, uint informationLength, out uint returnLength);
+
+    [DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    internal static extern IntPtr CommandLineToArgvW(string commandLine, out int argumentCount);
+
+    [DllImport("kernel32.dll")]
+    internal static extern IntPtr LocalFree(IntPtr memory);
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     internal static extern uint GetFinalPathNameByHandleW(

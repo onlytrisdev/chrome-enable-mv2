@@ -38,13 +38,16 @@ public partial class App : Application
     /// Invoked when the application is launched.
     /// </summary>
     /// <param name="args">Details about the launch request and process.</param>
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        var arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
-        var separator = Array.IndexOf(arguments, "--");
-        ChromeArguments = separator >= 0 ? arguments[(separator + 1)..] : [];
-        AutoLaunchRequested = (separator >= 0 ? arguments[..separator] : arguments)
-            .Contains("--auto-launch", StringComparer.OrdinalIgnoreCase);
+        var options = Mv2Enabler.LauncherArguments.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());
+        ChromeArguments = options.ChromeArguments;
+        AutoLaunchRequested = options.AutoLaunch;
+        if (!options.ShowUi && await Task.Run(() => Mv2Enabler.RunningChromeSession.TryOpenPatchedWindow(ChromeArguments)))
+        {
+            Exit();
+            return;
+        }
         _window = new MainWindow();
         _window.Activate();
     }

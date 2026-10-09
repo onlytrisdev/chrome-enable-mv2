@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.6.0` adds support for Google Chrome `155.0.8059.40` x64 and closes the GUI automatically after a successful browser launch. The Chrome 151 through 154 rules remain available for older installations. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.7.0` reuses an already-patched Chrome session: opening the launcher again opens a new browser window without showing the patcher. Support for Google Chrome `155.0.8059.40` x64 and the Chrome 151 through 154 rules remains available. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -21,6 +21,8 @@ It analyzes Chrome on startup, monitors whether Chrome is running, repairs persi
 Use **Create one-click shortcut** to add a Desktop shortcut that analyzes and launches Chrome with the RAM patch in one action. The app checks GitHub Releases at startup. When a newer version is published, **Install update** downloads the GUI ZIP, checks its SHA-256 digest, extracts it into a per-user versioned directory, updates the Desktop shortcut, and opens the new app. **Open Chrome normally** remains available if the current Chrome build has no verified patch.
 
 After a successful patched or normal launch, the GUI exits immediately while Chrome keeps running. This applies to both the launch button and the Desktop shortcut. If analysis or launch fails, the GUI stays open to display the error. Advanced users can pass Chrome arguments after `--`, for example `ChromeMv2Launcher.exe --auto-launch -- --user-data-dir=E:\Chrome-MV2-Profile`.
+
+When Chrome is already running, both the one-click shortcut and the executable itself first verify every RAM patch byte in the browser root process. Only a fully verified session with the same user-data directory is reused. The check analyzes that process's loaded `chrome.dll`, including an older version still running after an on-disk Chrome update. Unpatched, partially patched, inaccessible, or unsupported sessions are not reused or modified. URLs and profile arguments are forwarded, with or without the `--` separator. Use `ChromeMv2Launcher.exe --show-ui` to open settings and update controls without taking this shortcut; the windowless reuse path does not run the GUI update check.
 
 The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
 
@@ -46,7 +48,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.
 - Never writes to `chrome.dll` on disk.
-- Refuses to launch while any Chrome process is already running.
+- New patched launches still require Chrome to be fully closed. The GUI may open another window only in an existing browser session whose complete RAM patch set has been verified; it never patches that session during the check.
 
 ## Build and test
 
@@ -64,7 +66,7 @@ The automated smoke test creates a uniquely named profile below `%TEMP%\mv2ctl-s
 
 The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It then closes Chrome, launches the same temporary profile again through the RAM patcher, and requires the persistent MV2 background page to return. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
 
-After packaging, run `.\scripts\test-gui-launch.ps1` to verify automatic shortcut launch, manual launch, normal Chrome launch, and the Chrome-already-running error. It uses temporary profiles and checks that the launcher exits while Chrome's DevTools endpoint remains available.
+After packaging, run `.\scripts\test-gui-launch.ps1` to verify automatic shortcut launch, manual launch, normal Chrome launch, windowless reuse with URL forwarding, explicit GUI access, and rejection of unpatched or mismatched-profile sessions. It uses temporary profiles and checks that the launcher exits while Chrome's DevTools endpoint remains available.
 
 ## Launch Chrome
 
