@@ -33,6 +33,28 @@ internal static class NativeMethods
     internal delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct ProcessEntry32
+    {
+        internal uint Size, Usage, ProcessId;
+        internal UIntPtr DefaultHeap;
+        internal uint ModuleId, Threads, ParentProcessId;
+        internal int BasePriority;
+        internal uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] internal string Executable;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    internal static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool Process32FirstW(IntPtr snapshot, ref ProcessEntry32 entry);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool Process32NextW(IntPtr snapshot, ref ProcessEntry32 entry);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct StartupInfo
     {
         internal uint cb;
@@ -195,6 +217,10 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern IntPtr OpenProcess(uint desiredAccess, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool OpenProcessToken(IntPtr process, uint desiredAccess, out IntPtr token);
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]

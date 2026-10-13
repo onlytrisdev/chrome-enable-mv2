@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.7.0` reuses an already-patched Chrome session: opening the launcher again opens a new browser window without showing the patcher. Support for Google Chrome `155.0.8059.40` x64 and the Chrome 151 through 154 rules remains available. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.8.0` adds the Chrome 156 rule and an opt-in restart option for an unpatched running browser (#13). The Chrome 156 rule was validated on Chrome for Testing `156.0.8078.12` x64, including MV2 installation and persistence after restart. Installed Google Chrome `155.0.8059.40` and the older Chrome 151-154 rules remain supported. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -23,6 +23,8 @@ Use **Create one-click shortcut** to add a Desktop shortcut that analyzes and la
 After a successful patched or normal launch, the GUI exits immediately while Chrome keeps running. This applies to both the launch button and the Desktop shortcut. If analysis or launch fails, the GUI stays open to display the error. Advanced users can pass Chrome arguments after `--`, for example `ChromeMv2Launcher.exe --auto-launch -- --user-data-dir=E:\Chrome-MV2-Profile`.
 
 When Chrome is already running, both the one-click shortcut and the executable itself first verify every RAM patch byte in the browser root process. Only a fully verified session with the same user-data directory is reused. The check analyzes that process's loaded `chrome.dll`, including an older version still running after an on-disk Chrome update. Unpatched, partially patched, inaccessible, or unsupported sessions are not reused or modified. URLs and profile arguments are forwarded, with or without the `--` separator. Use `ChromeMv2Launcher.exe --show-ui` to open settings and update controls without taking this shortcut; the windowless reuse path does not run the GUI update check.
+
+**Close and restart unpatched Chrome** is off by default. Enable it in the GUI (use `--show-ui` if necessary); the preference is saved per user and also applies to the one-click shortcut. Each restart requires confirmation. The launcher first verifies the complete original-byte patch set, executable, Windows user/session, and user-data directory; partial, unsupported, inaccessible, or unrelated sessions are not closed. Normal window closure is tried first. Background Chrome or a cancelled unload prompt requires a separate **Force close** confirmation, with **Cancel** as the default. Unsaved work may be lost; cancelling either dialog does not force termination. All windows/profiles sharing that browser session are affected. The consent is bound to the process ID and creation time, and the current on-disk Chrome is analyzed before closing and again before relaunching. The final launch guard still requires all Chrome processes to be gone.
 
 The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
 
@@ -43,7 +45,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
-- Rule v8 verifies the normal policy call, the relocated unsupported-manifest error path, and their shared callback before accepting Chrome 155's install gate.
+- Rules v8/v9 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback before accepting the Chrome 155/156 install gate. Chrome 155 requires localized error resource 8129; Chrome 156 requires 8121. Neither rule accepts an arbitrary resource ID.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.
@@ -67,6 +69,8 @@ The automated smoke test creates a uniquely named profile below `%TEMP%\mv2ctl-s
 The functional UI test uses Chrome's normal **Load unpacked** workflow, selects `test-extension`, and requires a DevTools target whose `chrome-extension://` host exactly matches the ID derived from the test manifest's fixed public key. It then closes Chrome, launches the same temporary profile again through the RAM patcher, and requires the persistent MV2 background page to return. Its profile is uniquely named and removed afterward. The test briefly opens a Chrome window and restores the clipboard text it temporarily uses for the native folder picker.
 
 After packaging, run `.\scripts\test-gui-launch.ps1` to verify automatic shortcut launch, manual launch, normal Chrome launch, windowless reuse with URL forwarding, explicit GUI access, and rejection of unpatched or mismatched-profile sessions. It uses temporary profiles and checks that the launcher exits while Chrome's DevTools endpoint remains available.
+
+The GUI test also covers restart opt-in, graceful confirmation/cancellation, background force-close confirmation/cancellation, and verified patched reuse after restart. It backs up and restores the restart preference. `RestartSessionIntegrationTests` uses owned temporary headless sessions to test refusal of wrong-profile, partially patched, stale-consent, and already-patched browsers. Close your own Chrome before running integration tests; they never terminate a pre-existing browser as test setup.
 
 ## Launch Chrome
 

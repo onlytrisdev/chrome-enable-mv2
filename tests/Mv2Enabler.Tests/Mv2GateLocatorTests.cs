@@ -13,6 +13,32 @@ public sealed class Mv2GateLocatorTests
         Assert.Contains(evidence, item => item.Contains("8129", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ValidatesChrome156ResourceWithoutWeakeningChrome155Rule()
+    {
+        var bytes = CreateInstallFlow();
+        BitConverter.GetBytes(8121).CopyTo(bytes, Entry + 255 + 12);
+        Assert.True(Mv2GateLocator.TryValidateUserMayInstallV9(bytes, Text, Entry, out var evidence, out var reason), reason);
+        Assert.Contains(evidence, item => item.Contains("8121", StringComparison.Ordinal));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV8(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV9(CreateInstallFlow(), Text, Entry, out _, out _));
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(44)]
+    [InlineData(36)]
+    [InlineData(50)]
+    [InlineData(267)]
+    [InlineData(291)]
+    public void Chrome156RejectsChangedBranchesAndResource(int offset)
+    {
+        var bytes = CreateInstallFlow();
+        BitConverter.GetBytes(8121).CopyTo(bytes, Entry + 255 + 12);
+        bytes[Entry + offset] ^= 1;
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV9(bytes, Text, Entry, out _, out _));
+    }
+
     [Theory]
     [InlineData(5)] // MV3 branch skips the policy call.
     [InlineData(44)] // Component-location branch goes elsewhere.

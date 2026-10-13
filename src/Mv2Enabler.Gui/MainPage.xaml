@@ -104,6 +104,10 @@
                         <TextBlock x:Name="LaunchOptionsHeaderText" FontWeight="SemiBold" />
                         <CheckBox x:Name="OpenExtensionsCheckBox"
                                   IsChecked="True" />
+                        <CheckBox x:Name="RestartUnpatchedCheckBox"
+                                  IsChecked="False"
+                                  Checked="RestartUnpatchedCheckBox_Changed"
+                                  Unchecked="RestartUnpatchedCheckBox_Changed" />
                     </StackPanel>
                 </Border>
             </Grid>

@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Media;
 using Mv2Enabler;
 
@@ -25,12 +26,14 @@ public sealed partial class MainPage : Page
     private bool _analysisFailed;
     private bool _checkingUpdate;
     private bool _installingUpdate;
+    private bool _initializingSettings = true;
 
     public MainPage()
     {
         InitializeComponent();
         LocalizationService.Initialize();
         SelectCurrentLanguage();
+        LoadSettings();
         ApplyLanguage();
         Loaded += MainPage_Loaded;
         Unloaded += MainPage_Unloaded;
@@ -137,11 +140,12 @@ public sealed partial class MainPage : Page
         if (_installation is null || _analysis?.Target is null || !_analysis.Success)
         {
             await AnalyzeAsync();
-            return;
+            if (_installation is null || _analysis?.Target is null || !_analysis.Success)
+            {
+                return;
+            }
         }
 
-        var installation = _installation;
-        var target = _analysis.Target;
         IReadOnlyList<string> chromeArguments = OpenExtensionsCheckBox.IsChecked == true
             ? [.. App.ChromeArguments, "chrome://extensions/"]
             : App.ChromeArguments;
@@ -151,13 +155,92 @@ public sealed partial class MainPage : Page
         var launched = false;
         try
         {
+            var inspection = await Task.Run(() => RunningChromeSession.Inspect(chromeArguments));
+            if (inspection.State != ChromeSessionState.NoChrome)
+            {
+                if (RestartUnpatchedCheckBox.IsChecked != true || !inspection.CanRestart)
+                {
+                    ShowMessage(
+                        InfoBarSeverity.Warning,
+                        T("CannotOpenChrome"),
+                        RestartUnpatchedCheckBox.IsChecked != true
+                            ? T("CloseChrome")
+                            : T("CannotRestartRunningChrome"));
+                    return;
+                }
+
+                BusyRing.IsActive = false;
+                var initialDialog = new ContentDialog
+                {
+                    Name = "CloseSessionDialog",
+                    XamlRoot = this.XamlRoot ?? Content.XamlRoot,
+                    Title = T("CloseSessionDialogTitle"),
+                    Content = T("CloseSessionDialogContent"),
+                    PrimaryButtonText = T("CloseSessionConfirm"),
+                    CloseButtonText = T("Cancel"),
+                    DefaultButton = ContentDialogButton.Close
+                };
+
+                AutomationProperties.SetAutomationId(initialDialog, "CloseSessionDialog");
+                var initialResult = await initialDialog.ShowAsync();
+                if (initialResult != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+
+                BusyRing.IsActive = true;
+                var closed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(chromeArguments, forceClose: false, TimeSpan.FromSeconds(8), inspection));
+                if (!closed)
+                {
+                    var stillRunning = await Task.Run(() => RunningChromeSession.Inspect(chromeArguments));
+                    if (!stillRunning.CanRestart || stillRunning.ProcessId != inspection.ProcessId ||
+                        stillRunning.StartTimeUtcTicks != inspection.StartTimeUtcTicks)
+                    {
+                        ShowMessage(InfoBarSeverity.Error, T("CannotOpenChrome"), T("CannotRestartRunningChrome"));
+                        return;
+                    }
+                    BusyRing.IsActive = false;
+                    var forceDialog = new ContentDialog
+                    {
+                        Name = "ForceCloseDialog",
+                        XamlRoot = this.XamlRoot ?? Content.XamlRoot,
+                        Title = T("ForceCloseDialogTitle"),
+                        Content = T("ForceCloseDialogContent"),
+                        PrimaryButtonText = T("ForceCloseConfirm"),
+                        CloseButtonText = T("Cancel"),
+                        DefaultButton = ContentDialogButton.Close
+                    };
+
+                    AutomationProperties.SetAutomationId(forceDialog, "ForceCloseDialog");
+                    var forceResult = await forceDialog.ShowAsync();
+                    if (forceResult != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+
+                    BusyRing.IsActive = true;
+                    var forceClosed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(chromeArguments, forceClose: true, TimeSpan.FromSeconds(8), inspection));
+                    if (!forceClosed)
+                    {
+                        ShowMessage(InfoBarSeverity.Error, T("CannotOpenChrome"), T("CannotRestartRunningChrome"));
+                        return;
+                    }
+                }
+            }
+
             await Task.Run(() =>
             {
                 ChromeDebugLauncher.EnsureChromeIsNotRunning();
-                ChromeProfileRepair.RepairBeforeLaunch(installation, chromeArguments);
+                // Chrome may update while a confirmation dialog is open. Do not launch with
+                // a stale installation/RVA snapshot after the existing session has closed.
+                var currentInstallation = ChromeInstallationFinder.Find();
+                var currentReport = AnalysisService.Analyze(currentInstallation);
+                if (!currentReport.Success || currentReport.Target is null)
+                    throw new InvalidOperationException(T("UnsupportedChrome"));
+                ChromeProfileRepair.RepairBeforeLaunch(currentInstallation, chromeArguments);
                 ChromeDebugLauncher.Launch(
-                    installation,
-                    target,
+                    currentInstallation,
+                    currentReport.Target,
                     chromeArguments,
                     TimeSpan.FromSeconds(20));
             });
@@ -181,6 +264,46 @@ public sealed partial class MainPage : Page
         {
             Application.Current.Exit();
         }
+    }
+
+    private void LoadSettings()
+    {
+        _initializingSettings = true;
+        try
+        {
+            RestartUnpatchedCheckBox.IsChecked = LauncherSettings.RestartUnpatchedEnabled;
+        }
+        catch (Exception)
+        {
+            RestartUnpatchedCheckBox.IsChecked = false;
+        }
+        finally
+        {
+            _initializingSettings = false;
+        }
+    }
+
+    private void RestartUnpatchedCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_initializingSettings)
+        {
+            return;
+        }
+
+        var isChecked = RestartUnpatchedCheckBox.IsChecked == true;
+        try
+        {
+            LauncherSettings.RestartUnpatchedEnabled = isChecked;
+        }
+        catch (Exception error)
+        {
+            _initializingSettings = true;
+            RestartUnpatchedCheckBox.IsChecked = LauncherSettings.RestartUnpatchedEnabled;
+            _initializingSettings = false;
+            ShowMessage(InfoBarSeverity.Error, T("SettingsSaveFailed"), error.Message);
+        }
+
+        UpdateProcessState();
     }
 
     private async void CreateShortcutButton_Click(object sender, RoutedEventArgs e)
@@ -261,6 +384,8 @@ public sealed partial class MainPage : Page
         _installingUpdate = true;
         InstallUpdateButton.IsEnabled = false;
         CheckUpdateButton.IsEnabled = false;
+        RestartUnpatchedCheckBox.IsEnabled = false;
+        LaunchButton.IsEnabled = false;
         UpdateStatusText.Text = T("InstallingUpdate", _availableUpdate.Version);
         try
         {
@@ -278,6 +403,7 @@ public sealed partial class MainPage : Page
             _installingUpdate = false;
             InstallUpdateButton.IsEnabled = true;
             CheckUpdateButton.IsEnabled = true;
+            UpdateProcessState();
         }
     }
 
@@ -291,8 +417,11 @@ public sealed partial class MainPage : Page
                 ? T("ChromeRunning", processes.Length)
                 : T("ChromeClosed");
             ProcessStatusDot.Background = Brush(running ? Colors.Gold : Colors.LimeGreen);
-            LaunchButton.IsEnabled = !_busy && !_installingUpdate && !running &&
-                _analysis?.Success == true && _analysis.Target is not null;
+
+            var canLaunchRunning = running && (RestartUnpatchedCheckBox.IsChecked == true);
+            var isSafeAnalysis = _analysis?.Success == true && _analysis.Target is not null;
+            LaunchButton.IsEnabled = !_busy && !_installingUpdate && (!running || canLaunchRunning) && isSafeAnalysis;
+            RestartUnpatchedCheckBox.IsEnabled = !_busy && !_installingUpdate;
         }
         finally
         {
@@ -311,6 +440,8 @@ public sealed partial class MainPage : Page
         {
             LaunchButton.IsEnabled = false;
         }
+        RestartUnpatchedCheckBox.IsEnabled = !_busy && !_installingUpdate;
+        InstallUpdateButton.IsEnabled = !_busy && !_installingUpdate;
     }
 
     private void ShowMessage(InfoBarSeverity severity, string title, string message)
@@ -351,6 +482,7 @@ public sealed partial class MainPage : Page
         BrowserStatusHeaderText.Text = T("BrowserStatus");
         LaunchOptionsHeaderText.Text = T("LaunchOptions");
         OpenExtensionsCheckBox.Content = T("OpenExtensions");
+        RestartUnpatchedCheckBox.Content = T("RestartUnpatched");
         LaunchButtonText.Text = T("LaunchButton");
         RefreshButtonText.Text = T("Refresh");
         CreateShortcutButtonText.Text = T("CreateShortcut");
@@ -424,5 +556,4 @@ public sealed partial class MainPage : Page
 
         return builder.ToString().TrimEnd();
     }
-
 }

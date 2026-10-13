@@ -16,7 +16,8 @@ public sealed class InstalledChromeTests
             report.Target.RuleId is "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5"
                                  or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
                                  or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v7"
-                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v8",
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v8"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v9",
             $"Unexpected rule ID: {report.Target.RuleId}");
         Assert.Equal(0x7f, report.Target.ExpectedByte);
         Assert.Equal(0xeb, report.Target.ReplacementByte);

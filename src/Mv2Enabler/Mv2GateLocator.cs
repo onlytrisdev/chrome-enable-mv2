@@ -85,6 +85,9 @@ internal static class Mv2GateLocator
     private static readonly BytePattern UserMayInstallV8ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA C1 1F 00 00 E8 ?? ?? ?? ?? " +
         "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV9ErrorPattern = BytePattern.Parse(
+        "4C 8D B4 24 50 02 00 00 4C 89 F1 BA B9 1F 00 00 E8 ?? ?? ?? ?? " +
+        "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV8TypesPattern = BytePattern.Parse(
         "83 F9 08 0F 84 ?? ?? ?? ?? 83 F9 03 0F 85 ?? ?? ?? ?? E9 ?? ?? ?? ??");
     private static readonly BytePattern EntryPattern = BytePattern.Parse(
@@ -300,6 +303,8 @@ internal static class Mv2GateLocator
         var userMayInstallV7Matches = isV7 ? UserMayInstallV7Pattern.FindAll(sectionBytes) : [];
         var userMayInstallV8Matches = isV7 ? UserMayInstallV8Pattern.FindAll(sectionBytes) : [];
         var isV8 = userMayInstallV8Matches.Count == 1;
+        var isV9 = isV8 && TryValidateUserMayInstallV9(image.Bytes, text,
+            text.RawOffset + userMayInstallV8Matches[0], out _, out _);
         var userMayInstallV6Matches = !isV7 ? UserMayInstallV6Pattern.FindAll(sectionBytes) : [];
         var isV6 = !isV7 && userMayInstallV6Matches.Count == 1;
 
@@ -314,7 +319,7 @@ internal static class Mv2GateLocator
             : isV6
                 ? userMayInstallV6Matches
                 : UserMayInstallV5Pattern.FindAll(sectionBytes);
-        var chromeVersionLabel = isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
+        var chromeVersionLabel = isV9 ? "Chrome 156" : isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
 
         if (mustRemainDisabledMatches.Count != 1 ||
             reEnableMatches.Count != 1 ||
@@ -354,7 +359,10 @@ internal static class Mv2GateLocator
         var expectedResourceId = isV6 ? 8085 : 8115;
         IReadOnlyList<string> userMayInstallEvidence;
         string userMayInstallReason;
-        var userMayInstallValid = isV8
+        var userMayInstallValid = isV9
+            ? TryValidateUserMayInstallV9(
+                image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason)
+            : isV8
             ? TryValidateUserMayInstallV8(
                 image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason)
             : TryValidateUserMayInstallBranch(
@@ -444,14 +452,18 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var ruleId = isV8
+        var ruleId = isV9
+            ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v9"
+            : isV8
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v8"
             : isV7
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v7"
             : isV6
                 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
                 : "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5";
-        var description = isV8
+        var description = isV9
+            ? "Force both Chrome 156 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
+            : isV8
             ? "Force both Chrome 155 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
             : isV7
             ? "Force both Chrome 154 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
@@ -747,9 +759,20 @@ internal static class Mv2GateLocator
         int rawOffset,
         out IReadOnlyList<string> evidence,
         out string reason)
+        => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV8ErrorPattern,
+            "Chrome 155", 8129, out evidence, out reason);
+
+    internal static bool TryValidateUserMayInstallV9(byte[] bytes, PeSection section, int rawOffset,
+        out IReadOnlyList<string> evidence, out string reason)
+        => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV9ErrorPattern,
+            "Chrome 156", 8121, out evidence, out reason);
+
+    private static bool TryValidateInstallPolicyFlow(byte[] bytes, PeSection section, int rawOffset,
+        BytePattern errorPattern, string chromeVersion, int resourceId,
+        out IReadOnlyList<string> evidence, out string reason)
     {
         evidence = [];
-        reason = "Chrome 155 UserMayInstall control flow did not match.";
+        reason = $"{chromeVersion} UserMayInstall control flow did not match.";
         var sectionEnd = (long)section.RawOffset + section.RawSize;
         bool InSection(long offset, int length) => offset >= section.RawOffset &&
             offset + length <= sectionEnd && offset + length <= bytes.Length;
@@ -785,10 +808,10 @@ internal static class Mv2GateLocator
         }
 
         var errorTarget = NearTarget(rawOffset + 48, 6);
-        if (!InSection(errorTarget, UserMayInstallV8ErrorPattern.Length) ||
-            !UserMayInstallV8ErrorPattern.MatchesAt(bytes, (int)errorTarget))
+        if (!InSection(errorTarget, errorPattern.Length) ||
+            !errorPattern.MatchesAt(bytes, (int)errorTarget))
         {
-            reason = "affected path does not reach the verified unsupported-manifest error resource 8129";
+            reason = $"affected path does not reach the verified unsupported-manifest error resource {resourceId}";
             return false;
         }
 
@@ -805,8 +828,8 @@ internal static class Mv2GateLocator
         }
 
         evidence = [
-            "Chrome 155 UserMayInstall manifest/type/location branches converge on the normal UserMayLoad policy call",
-            "affected path constructs unsupported-manifest error resource 8129 and rejoins the shared callback",
+            $"{chromeVersion} UserMayInstall manifest/type/location branches converge on the normal UserMayLoad policy call",
+            $"affected path constructs unsupported-manifest error resource {resourceId} and rejoins the shared callback",
             $"manifest-version branch reaches the normal policy path at raw offset 0x{normalPath:X}"
         ];
         reason = string.Empty;

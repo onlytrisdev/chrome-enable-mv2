@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.7.0` dùng lại phiên Chrome đã vá: mở launcher lần nữa sẽ mở thêm cửa sổ Chrome, không hiện giao diện patcher. Hỗ trợ Google Chrome x64 `155.0.8059.40` và rule dành cho Chrome 151 đến 154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.8.0` bổ sung rule Chrome 156 và tùy chọn đóng/mở lại phiên Chrome chưa vá (#13). Rule mới đã được kiểm thử trên Chrome for Testing x64 `156.0.8078.12`, gồm nạp MV2 và giữ extension sau restart. Google Chrome đang cài `155.0.8059.40` và các rule Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## GUI WinUI 3 (khuyên dùng)
 
@@ -23,6 +23,8 @@ GUI tự đóng ngay khi mở Chrome thành công, dù dùng nút launch, shortc
 Khi Chrome đã mở, cả shortcut một chạm lẫn file EXE đều kiểm tra toàn bộ byte patch trong tiến trình browser gốc trước khi hiện GUI. Chỉ phiên đã vá đầy đủ và cùng thư mục dữ liệu mới được dùng lại. Công cụ phân tích đúng `chrome.dll` mà phiên đó đang nạp, kể cả bản cũ còn chạy sau khi Chrome cập nhật trên đĩa. Phiên chưa vá, vá thiếu, không đọc được hoặc layout không hỗ trợ sẽ không được dùng lại hay sửa đổi. URL và tham số profile được chuyển tiếp dù có hoặc không có dấu phân cách `--`. Dùng `ChromeMv2Launcher.exe --show-ui` để mở phần cài đặt/cập nhật; luồng mở thẳng Chrome không chạy kiểm tra cập nhật của GUI.
 
 GUI hỗ trợ `Tiếng Việt`, `English` và `简体中文`. Lần chạy đầu ứng dụng tự chọn theo ngôn ngữ Windows, sau đó ghi nhớ lựa chọn tại `%LOCALAPPDATA%\ChromeMv2Launcher\language.txt`.
+
+Tùy chọn **Đóng và mở lại Chrome chưa vá** mặc định tắt. Bật trong GUI (`--show-ui` nếu Chrome đã vá đang chạy); ứng dụng ghi nhớ lựa chọn cho cả shortcut. Mỗi lần restart đều hỏi xác nhận, mặc định chọn Hủy. Công cụ chỉ đóng phiên đã xác minh đầy đủ byte gốc, đúng file Chrome, người dùng/phiên Windows và thư mục dữ liệu; không đóng phiên vá thiếu, không đọc được, không hỗ trợ hoặc không liên quan. Trước hết thử đóng cửa sổ bình thường. Chrome chạy nền hoặc chưa chịu thoát cần xác nhận **Buộc đóng** riêng, vì nội dung chưa lưu có thể mất. Hủy không buộc đóng tiến trình. Mọi cửa sổ/profile cùng một phiên browser sẽ bị ảnh hưởng. Xác nhận gắn với PID và thời điểm tạo tiến trình; Chrome trên đĩa được phân tích trước khi đóng và trước khi mở lại. Luồng launch cuối vẫn yêu cầu không còn tiến trình Chrome.
 
 Bản GitHub Release được đóng gói dạng ZIP self-contained. Sau khi giải nén, chạy `ChromeMv2Launcher.exe`; không cần cài .NET hoặc Windows App Runtime riêng.
 
@@ -69,7 +71,7 @@ Sau khi build gói phát hành, chạy `.\scripts\test-gui-launch.ps1` để ki�
 ## Lưu ý
 
 - Chỉ hỗ trợ Google Chrome x64 trên Windows.
-- Bản build hiện tại được xác nhận trên Chrome `155.0.8059.40`; rule Chrome 151 đến 154 vẫn được giữ lại.
+- Bản build được kiểm thử trên Google Chrome `155.0.8059.40` và Chrome for Testing `156.0.8078.12`; rule Chrome 151 đến 154 vẫn được giữ lại.
 - Công cụ có thể tiếp tục chạy sau update nếu semantic signatures vẫn khớp duy nhất; nếu không, analyzer sẽ fail-closed và cần bổ sung rule mới.
 - `mv2ctl probe` dò các vị trí có khả năng liên quan bằng heuristic rộng hơn, chỉ dùng để chẩn đoán; không tự patch từ kết quả probe.
 - Seed MAC của profile được tự tìm trong `resources.pak` bằng cách đối chiếu các MAC hiện có; không hard-code seed hoặc offset theo phiên bản.

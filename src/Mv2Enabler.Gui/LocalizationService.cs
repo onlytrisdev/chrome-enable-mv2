@@ -59,7 +59,18 @@ internal static class LocalizationService
                 ["InstallUpdate"] = "Cài bản mới",
                 ["InstallingUpdate"] = "Đang tải và cài bản {0}…",
                 ["UpdateCheckFailed"] = "Không thể kiểm tra cập nhật: {0}",
-                ["UpdateInstallFailed"] = "Không thể cài cập nhật: {0}"
+                ["UpdateInstallFailed"] = "Không thể cài cập nhật: {0}",
+                ["SettingsSaveFailed"] = "Không thể lưu cài đặt",
+                ["RestartUnpatched"] = "Đóng và mở lại Chrome chưa vá (dữ liệu chưa lưu có thể bị mất)",
+                ["CloseSessionDialogTitle"] = "Đóng phiên Chrome đang chạy?",
+                ["CloseSessionDialogContent"] = "Tất cả các cửa sổ thuộc phiên Chrome này sẽ bị đóng. Mọi dữ liệu chưa lưu có thể bị mất. Bạn có muốn tiếp tục không?",
+                ["CloseSessionConfirm"] = "Đóng và mở lại",
+                ["Cancel"] = "Hủy",
+                ["ForceCloseDialogTitle"] = "Bắt buộc đóng Chrome?",
+                ["ForceCloseDialogContent"] = "Chrome vẫn đang chạy và không thể đóng bình thường. Buộc đóng sẽ làm mất ngay lập tức các dữ liệu chưa lưu. Bạn có muốn buộc đóng tất cả cửa sổ tương ứng không?",
+                ["ForceCloseConfirm"] = "Buộc đóng",
+                ["CannotRestartRunningChrome"] = "Chrome đang chạy và không thể khởi động lại an toàn. Phát hiện phiên khác, profile khác hoặc tiến trình không liên quan. Vui lòng đóng Chrome thủ công.",
+                ["CloseChromeFailed"] = "Không thể đóng phiên Chrome đang chạy. Vui lòng đóng tất cả cửa sổ Chrome thủ công."
             },
             [English] = new Dictionary<string, string>
             {
@@ -105,7 +116,18 @@ internal static class LocalizationService
                 ["InstallUpdate"] = "Install update",
                 ["InstallingUpdate"] = "Downloading and installing version {0}…",
                 ["UpdateCheckFailed"] = "Could not check for updates: {0}",
-                ["UpdateInstallFailed"] = "Could not install update: {0}"
+                ["UpdateInstallFailed"] = "Could not install update: {0}",
+                ["SettingsSaveFailed"] = "Could not save settings",
+                ["RestartUnpatched"] = "Close and restart unpatched Chrome (unsaved work may be lost)",
+                ["CloseSessionDialogTitle"] = "Close running Chrome session?",
+                ["CloseSessionDialogContent"] = "All windows belonging to this Chrome session will be closed. Any unsaved work may be lost. Do you want to continue?",
+                ["CloseSessionConfirm"] = "Close and restart",
+                ["Cancel"] = "Cancel",
+                ["ForceCloseDialogTitle"] = "Force close Chrome?",
+                ["ForceCloseDialogContent"] = "Chrome is still running and could not be closed gracefully. Force closing will discard any unsaved work immediately. Do you want to force close all matching windows?",
+                ["ForceCloseConfirm"] = "Force close",
+                ["CannotRestartRunningChrome"] = "Chrome is running and cannot be restarted safely. Another session, different profile, or unrelated process was detected. Please close Chrome manually.",
+                ["CloseChromeFailed"] = "Could not close the running Chrome session. Please close all Chrome windows manually."
             },
             [SimplifiedChinese] = new Dictionary<string, string>
             {
@@ -151,7 +173,18 @@ internal static class LocalizationService
                 ["InstallUpdate"] = "安装更新",
                 ["InstallingUpdate"] = "正在下载并安装版本 {0}…",
                 ["UpdateCheckFailed"] = "无法检查更新：{0}",
-                ["UpdateInstallFailed"] = "无法安装更新：{0}"
+                ["UpdateInstallFailed"] = "无法安装更新：{0}",
+                ["SettingsSaveFailed"] = "无法保存设置",
+                ["RestartUnpatched"] = "关闭并重启未打补丁的 Chrome（未保存的内容可能会丢失）",
+                ["CloseSessionDialogTitle"] = "关闭正在运行的 Chrome 会话？",
+                ["CloseSessionDialogContent"] = "属于此 Chrome 会话的所有窗口都将被关闭。任何未保存的内容都可能会丢失。是否继续？",
+                ["CloseSessionConfirm"] = "关闭并重启",
+                ["Cancel"] = "取消",
+                ["ForceCloseDialogTitle"] = "强制关闭 Chrome？",
+                ["ForceCloseDialogContent"] = "Chrome 仍在运行且无法正常关闭。强制关闭将立即丢弃所有未保存的内容。是否强制关闭所有匹配的窗口？",
+                ["ForceCloseConfirm"] = "强制关闭",
+                ["CannotRestartRunningChrome"] = "Chrome 正在运行且无法安全重启。检测到其他会话、不同配置文件或不相关的进程。请手动关闭 Chrome。",
+                ["CloseChromeFailed"] = "无法关闭正在运行的 Chrome 会话。请手动关闭所有 Chrome 窗口。"
             }
         };
 

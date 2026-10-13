@@ -15,6 +15,11 @@ $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).
 $testRoot = Join-Path $temporaryBase ('mv2gui-test-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $guiProcesses = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
+$settingsPath = Join-Path $env:LOCALAPPDATA 'ChromeMv2Launcher\restart-unpatched.txt'
+$hadSettings = Test-Path -LiteralPath $settingsPath
+$settingsBackup = if ($hadSettings) { [System.IO.File]::ReadAllBytes($settingsPath) } else { $null }
+New-Item -ItemType Directory -Path (Split-Path -Parent $settingsPath) -Force | Out-Null
+[System.IO.File]::WriteAllText($settingsPath, 'disabled')
 
 function Start-TestGui([string]$Mode, [string]$Profile, [string]$Url = 'about:blank')
 {
@@ -60,6 +65,36 @@ function Invoke-TestButton([System.Diagnostics.Process]$Gui, [string]$Automation
         Start-Sleep -Milliseconds 100
     }
     throw "Timed out waiting for the enabled $AutomationId button."
+}
+
+function Set-RestartToggle([System.Diagnostics.Process]$Gui)
+{
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 20)
+    {
+        $toggle = Find-Control $Gui.Id 'RestartUnpatchedCheckBox'
+        if ($null -ne $toggle -and $toggle.Current.IsEnabled)
+        {
+            $pattern = $toggle.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+            if ($pattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::Off) { throw 'Restart option was not off by default.' }
+            $pattern.Toggle()
+            return
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw 'Restart toggle did not become available.'
+}
+
+function Wait-TestControl([System.Diagnostics.Process]$Gui, [string]$AutomationId)
+{
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($timer.Elapsed.TotalSeconds -lt 20)
+    {
+        if ($Gui.HasExited) { throw "GUI exited before displaying $AutomationId." }
+        if (Find-Control $Gui.Id $AutomationId) { return }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Timed out waiting for $AutomationId."
 }
 
 function Assert-GuiExited([System.Diagnostics.Process]$Gui)
@@ -226,14 +261,67 @@ try
             $unpatched = Start-TestGui 'auto' $profile
             Assert-CloseChromeError $unpatched
             [void](Assert-BrowserAlive $profile)
+            Set-RestartToggle $unpatched
             $unpatched.Kill(); [void]$unpatched.WaitForExit(5000)
             Write-Host 'PASS: ordinary unpatched Chrome with the same profile is not silently reused.'
+
+            $rootBeforeRestart = @(Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object {
+                $_.CommandLine -and $_.CommandLine.Contains($profile) -and -not $_.CommandLine.Contains('--type=')
+            }).ProcessId
+            $cancel = Start-TestGui 'auto' $profile
+            Invoke-TestButton $cancel 'CloseButton'
+            Start-Sleep -Milliseconds 300
+            if ($cancel.HasExited -or -not (Get-Process -Id $rootBeforeRestart -ErrorAction SilentlyContinue))
+            { throw 'Cancelling restart did not preserve the original browser and GUI.' }
+            [void](Assert-BrowserAlive $profile)
+            $cancel.Kill(); [void]$cancel.WaitForExit(5000)
+            Write-Host 'PASS: persisted opt-in shows confirmation; Cancel preserves the browser.'
+
+            $restart = Start-TestGui 'auto' $profile
+            Invoke-TestButton $restart 'PrimaryButton'
+            Assert-GuiExited $restart
+            [void](Assert-BrowserAlive $profile)
+            if (Get-Process -Id $rootBeforeRestart -ErrorAction SilentlyContinue) { throw 'Restart did not replace the old browser root.' }
+            $reuseAfterRestart = Start-TestGui 'direct' $profile 'data:text/html,mv2-restarted-and-patched'
+            Assert-WindowlessExit $reuseAfterRestart
+            Assert-PageOpened $profile 'data:text/html,mv2-restarted-and-patched'
+            Write-Host 'PASS: consent closes unpatched Chrome, launches a new patched session, and preserves windowless reuse.'
         }
         Stop-TestBrowsers
     }
+
+    $forceProfile = Join-Path $testRoot 'force'
+    $chromePath = Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
+    $background = Start-Process -FilePath $chromePath -WindowStyle Hidden -PassThru -ArgumentList @(
+        '--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0',
+        ('--user-data-dir="' + $forceProfile + '"'), 'about:blank')
+    [void](Assert-BrowserAlive $forceProfile)
+    $forceCancel = Start-TestGui 'auto' $forceProfile
+    Invoke-TestButton $forceCancel 'PrimaryButton'
+    Wait-TestControl $forceCancel 'ForceCloseDialog'
+    Invoke-TestButton $forceCancel 'CloseButton'
+    Start-Sleep -Milliseconds 300
+    if ($background.HasExited -or $forceCancel.HasExited) { throw 'Cancelling force close terminated a process.' }
+    $forceCancel.Kill(); [void]$forceCancel.WaitForExit(5000)
+    Write-Host 'PASS: background Chrome requires a separate force-close confirmation; Cancel preserves it.'
+
+    $forceRestart = Start-TestGui 'auto' $forceProfile
+    Invoke-TestButton $forceRestart 'PrimaryButton'
+    Wait-TestControl $forceRestart 'ForceCloseDialog'
+    Invoke-TestButton $forceRestart 'PrimaryButton'
+    Assert-GuiExited $forceRestart
+    [void](Assert-BrowserAlive $forceProfile)
+    if (-not $background.HasExited) { throw 'Confirmed force close did not stop the old background browser.' }
+    $background.Dispose()
+    $forceReuse = Start-TestGui 'direct' $forceProfile 'data:text/html,mv2-force-restarted'
+    Assert-WindowlessExit $forceReuse
+    Assert-PageOpened $forceProfile 'data:text/html,mv2-force-restarted'
+    Write-Host 'PASS: explicit force-close consent restarts background Chrome as a fully verified patched session.'
 }
 finally
 {
+    if ($hadSettings) { [System.IO.File]::WriteAllBytes($settingsPath, $settingsBackup) }
+    else { Remove-Item -LiteralPath $settingsPath -Force -ErrorAction SilentlyContinue }
     foreach ($gui in $guiProcesses)
     {
         try { if (-not $gui.HasExited) { $gui.Kill(); [void]$gui.WaitForExit(5000) } }
