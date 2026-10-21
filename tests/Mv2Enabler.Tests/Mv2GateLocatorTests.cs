@@ -24,6 +24,47 @@ public sealed class Mv2GateLocatorTests
         Assert.False(Mv2GateLocator.TryValidateUserMayInstallV9(CreateInstallFlow(), Text, Entry, out _, out _));
     }
 
+    [Fact]
+    public void ValidatesChrome156StableResourceWithoutChangingOlderRules()
+    {
+        var bytes = CreateInstallFlow();
+        BitConverter.GetBytes(8122).CopyTo(bytes, Entry + 255 + 12);
+        Assert.True(Mv2GateLocator.TryValidateUserMayInstallV10(bytes, Text, Entry, out var evidence, out var reason), reason);
+        Assert.Contains(evidence, item => item.Contains("8122", StringComparison.Ordinal));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV8(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV9(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV10(CreateInstallFlow(), Text, Entry, out _, out _));
+        BitConverter.GetBytes(8121).CopyTo(bytes, Entry + 255 + 12);
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV10(bytes, Text, Entry, out _, out _));
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(44)]
+    [InlineData(36)]
+    [InlineData(50)]
+    [InlineData(267)]
+    [InlineData(291)]
+    public void Chrome156StableRejectsChangedBranchesAndResource(int offset)
+    {
+        var bytes = CreateInstallFlow();
+        BitConverter.GetBytes(8122).CopyTo(bytes, Entry + 255 + 12);
+        bytes[Entry + offset] ^= 1;
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV10(bytes, Text, Entry, out _, out _));
+    }
+
+    [Fact]
+    public void Chrome156StableRejectsOutOfSectionPolicyAndErrorCalls()
+    {
+        foreach (var call in new[] { Entry + 71, Entry + 255 + 16 })
+        {
+            var bytes = CreateInstallFlow();
+            BitConverter.GetBytes(8122).CopyTo(bytes, Entry + 255 + 12);
+            WriteRelativeTarget(bytes, call, 5, 2048);
+            Assert.False(Mv2GateLocator.TryValidateUserMayInstallV10(bytes, Text, Entry, out _, out _));
+        }
+    }
+
     [Theory]
     [InlineData(5)]
     [InlineData(44)]

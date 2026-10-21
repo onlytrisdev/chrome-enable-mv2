@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.8.0` bổ sung rule Chrome 156 và tùy chọn đóng/mở lại phiên Chrome chưa vá (#13). Rule mới đã được kiểm thử trên Chrome for Testing x64 `156.0.8078.12`, gồm nạp MV2 và giữ extension sau restart. Google Chrome đang cài `155.0.8059.40` và các rule Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.9.0` bổ sung rule v10 cho Google Chrome x64 `156.0.8078.48` đang cài và kiểm tra cập nhật launcher trước cả auto-launch lẫn dùng lại phiên Chrome không hiện GUI (#14). Các rule Chrome 156 cũ, Chrome 155 và Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## GUI WinUI 3 (khuyên dùng)
 
@@ -20,7 +20,9 @@ Nút **Tạo lối tắt một chạm** tạo shortcut Desktop tự phân tích 
 
 GUI tự đóng ngay khi mở Chrome thành công, dù dùng nút launch, shortcut hay mở Chrome bình thường. Chrome tiếp tục chạy độc lập. Nếu phân tích hoặc launch gặp lỗi, GUI vẫn mở để hiển thị thông báo. Có thể truyền tham số Chrome sau `--`, ví dụ `ChromeMv2Launcher.exe --auto-launch -- --user-data-dir=E:\Chrome-MV2-Profile`.
 
-Khi Chrome đã mở, cả shortcut một chạm lẫn file EXE đều kiểm tra toàn bộ byte patch trong tiến trình browser gốc trước khi hiện GUI. Chỉ phiên đã vá đầy đủ và cùng thư mục dữ liệu mới được dùng lại. Công cụ phân tích đúng `chrome.dll` mà phiên đó đang nạp, kể cả bản cũ còn chạy sau khi Chrome cập nhật trên đĩa. Phiên chưa vá, vá thiếu, không đọc được hoặc layout không hỗ trợ sẽ không được dùng lại hay sửa đổi. URL và tham số profile được chuyển tiếp dù có hoặc không có dấu phân cách `--`. Dùng `ChromeMv2Launcher.exe --show-ui` để mở phần cài đặt/cập nhật; luồng mở thẳng Chrome không chạy kiểm tra cập nhật của GUI.
+Mỗi lần chạy EXE GUI đều thử kiểm tra bản mới trên GitHub, tối đa ba giây, kể cả shortcut và luồng mở thẳng Chrome. Có bản mới thì giữ GUI với nút **Cài bản mới**, không tự mở Chrome. Cài đặt vẫn cần người dùng bấm, không tự cài ngầm. Nếu mất mạng, hết quota API hoặc kiểm tra lỗi/timeout, luồng mở Chrome vẫn tiếp tục; lỗi cập nhật được hiển thị khi GUI mở.
+
+Khi Chrome đã mở và không tìm thấy bản launcher mới, cả shortcut lẫn EXE đều kiểm tra toàn bộ byte patch trong tiến trình browser gốc. Chỉ phiên đã vá đầy đủ và cùng thư mục dữ liệu mới được dùng lại. Công cụ phân tích đúng `chrome.dll` đang nạp; không dùng lại hay sửa phiên chưa vá, vá thiếu, không đọc được hoặc không hỗ trợ. URL và tham số profile được chuyển tiếp dù có hoặc không có `--`. Dùng `ChromeMv2Launcher.exe --show-ui` để chủ động mở cài đặt/cập nhật.
 
 GUI hỗ trợ `Tiếng Việt`, `English` và `简体中文`. Lần chạy đầu ứng dụng tự chọn theo ngôn ngữ Windows, sau đó ghi nhớ lựa chọn tại `%LOCALAPPDATA%\ChromeMv2Launcher\language.txt`.
 
@@ -42,6 +44,14 @@ Chrome phải được mở qua lệnh `launch` ở mỗi phiên mới vì bản
 CLI vẫn yêu cầu đóng Chrome trước khi khởi tạo phiên vá mới. GUI có thể mở thêm cửa sổ trong phiên đang chạy nếu xác minh được toàn bộ patch RAM và đúng thư mục dữ liệu; phiên chưa xác minh sẽ bị từ chối. Nếu phiên bản Chrome mới không khớp duy nhất với toàn bộ semantic signature, công cụ cũng dừng an toàn và không ghi gì.
 
 ## Kiểm thử
+
+### Chrome update và reset cài đặt (#14)
+
+Công cụ không tắt dịch vụ/task Google Updater hay can thiệp policy cập nhật Chrome. Policy quản trị chỉ được Google Updater tôn trọng trên thiết bị được quản lý; một toggle trên Windows cá nhân/ReviOS không bảo đảm chặn update. Không thể hứa phiên bản Chrome tương lai sẽ patch được trước khi nó được cài. Xem [tài liệu Google](https://support.google.com/chrome/a/answer/6350036?hl=en).
+
+Nếu báo không tìm được target an toàn, mở launcher mới nhất bằng `--show-ui`, kiểm tra bản launcher mới và giữ thông tin phiên bản Chrome cùng chi tiết kỹ thuật. Reset cài đặt không thể bổ sung signature cho Chrome mới.
+
+Để reset riêng launcher: đóng launcher, đổi tên hoặc xóa `language.txt` và `restart-unpatched.txt` trong `%LOCALAPPDATA%\ChromeMv2Launcher`. Không xóa thư mục `versions` khi chạy EXE nằm trong đó; không xóa profile `User Data` hay `Secure Preferences` của Chrome. Chưa xác nhận khả năng tương thích với mọi bản Windows đã sửa bằng ReviOS/AME.
 
 ```powershell
 dotnet test .\ManifestV2.slnx -c Release

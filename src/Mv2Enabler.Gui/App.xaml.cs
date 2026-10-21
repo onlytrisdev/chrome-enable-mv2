@@ -24,6 +24,7 @@ public partial class App : Application
     private Window? _window;
     internal static bool AutoLaunchRequested { get; private set; }
     internal static IReadOnlyList<string> ChromeArguments { get; private set; } = [];
+    internal static Mv2Enabler.StartupUpdateResult StartupUpdate { get; private set; } = new(null, null);
 
     /// <summary>
     /// Initializes the singleton application object.  This is the first line of authored code
@@ -43,7 +44,10 @@ public partial class App : Application
         var options = Mv2Enabler.LauncherArguments.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray());
         ChromeArguments = options.ChromeArguments;
         AutoLaunchRequested = options.AutoLaunch;
-        if (!options.ShowUi && await Task.Run(() => Mv2Enabler.RunningChromeSession.TryOpenPatchedWindow(ChromeArguments)))
+        StartupUpdate = await Mv2Enabler.StartupUpdateCheck.RunAsync(
+            typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0, 0));
+        if (!StartupUpdate.RequiresGui && !options.ShowUi &&
+            await Task.Run(() => Mv2Enabler.RunningChromeSession.TryOpenPatchedWindow(ChromeArguments)))
         {
             Exit();
             return;

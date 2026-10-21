@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$LauncherPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\win-x64-gui\ChromeMv2Launcher.exe')
+    [string]$LauncherPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\win-x64-gui\ChromeMv2Launcher.exe'),
+    [string]$UpdateFixturePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -239,6 +240,27 @@ try
     $settings.Kill(); [void]$settings.WaitForExit(5000)
     Write-Host 'PASS: --show-ui keeps settings accessible while patched Chrome is running.'
 
+    if ($UpdateFixturePath)
+    {
+        $releaseLauncher = $launcher
+        try
+        {
+            $launcher = (Get-Item -LiteralPath $UpdateFixturePath).FullName
+            $updateGui = Start-TestGui 'auto' $autoProfile 'data:text/html,should-wait-for-update'
+            Wait-TestControl $updateGui 'InstallUpdateButton'
+            $installButton = Find-Control $updateGui.Id 'InstallUpdateButton'
+            if ($installButton.Current.IsOffscreen) { throw 'The detected update button was not displayed.' }
+            [void](Assert-BrowserAlive $autoProfile)
+            $port = [int](Get-Content -LiteralPath (Join-Path $autoProfile 'DevToolsActivePort') -TotalCount 1)
+            $pages = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2
+            if ($pages | Where-Object url -eq 'data:text/html,should-wait-for-update')
+            { throw 'The startup update was bypassed by windowless browser reuse.' }
+            $updateGui.Kill(); [void]$updateGui.WaitForExit(5000)
+            Write-Host 'PASS: a newer release displays Install update before patched-browser reuse.'
+        }
+        finally { $launcher = $releaseLauncher }
+    }
+
     $errorProfile = Join-Path $testRoot 'error'
     $errorGui = Start-TestGui 'auto' $errorProfile
     Assert-CloseChromeError $errorGui
@@ -317,6 +339,23 @@ try
     Assert-WindowlessExit $forceReuse
     Assert-PageOpened $forceProfile 'data:text/html,mv2-force-restarted'
     Write-Host 'PASS: explicit force-close consent restarts background Chrome as a fully verified patched session.'
+    Stop-TestBrowsers
+    if ($UpdateFixturePath)
+    {
+        $releaseLauncher = $launcher
+        try
+        {
+            $launcher = (Get-Item -LiteralPath $UpdateFixturePath).FullName
+            $updateProfile = Join-Path $testRoot 'update-offered'
+            $updateGui = Start-TestGui 'auto' $updateProfile
+            Wait-TestControl $updateGui 'InstallUpdateButton'
+            if ((Test-Path -LiteralPath $updateProfile) -or (Get-Process -Name chrome -ErrorAction SilentlyContinue))
+            { throw 'Automatic launch bypassed the detected startup update.' }
+            $updateGui.Kill(); [void]$updateGui.WaitForExit(5000)
+            Write-Host 'PASS: a newer release keeps the GUI open instead of auto-launching Chrome.'
+        }
+        finally { $launcher = $releaseLauncher }
+    }
 }
 finally
 {

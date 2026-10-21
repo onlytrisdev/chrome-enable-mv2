@@ -43,13 +43,22 @@ public sealed partial class MainPage : Page
     private async void MainPage_Loaded(object sender, RoutedEventArgs e)
     {
         _processTimer.Start();
-        _ = CheckUpdateAsync(showCurrentStatus: false);
+        _availableUpdate = App.StartupUpdate.Update;
+        InstallUpdateButton.Visibility = _availableUpdate is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateStatusText.Text = _availableUpdate is not null
+            ? T("UpdateAvailable", _availableUpdate.Version)
+            : App.StartupUpdate.Error is { } error ? T("UpdateCheckFailed", error) : string.Empty;
         if (App.AutoLaunchRequested)
         {
             OpenExtensionsCheckBox.IsChecked = false;
         }
 
         await AnalyzeAsync();
+        if (App.StartupUpdate.Update is { } startupUpdate)
+        {
+            ShowMessage(InfoBarSeverity.Informational, T("UpdateAvailable", startupUpdate.Version), T("ReviewUpdateBeforeLaunch"));
+            return;
+        }
         if (App.AutoLaunchRequested)
         {
             if (_analysis?.Success == true)
