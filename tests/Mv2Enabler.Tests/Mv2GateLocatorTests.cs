@@ -25,6 +25,19 @@ public sealed class Mv2GateLocatorTests
     }
 
     [Fact]
+    public void ValidatesChrome157ResourceWithoutChangingOlderRules()
+    {
+        var bytes = CreateInstallFlow();
+        BitConverter.GetBytes(8130).CopyTo(bytes, Entry + 255 + 12);
+        Assert.True(Mv2GateLocator.TryValidateUserMayInstallV11(bytes, Text, Entry, out var evidence, out var reason), reason);
+        Assert.Contains(evidence, item => item.Contains("8130", StringComparison.Ordinal));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV8(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV9(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV10(bytes, Text, Entry, out _, out _));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV11(CreateInstallFlow(), Text, Entry, out _, out _));
+    }
+
+    [Fact]
     public void ValidatesChrome156StableResourceWithoutChangingOlderRules()
     {
         var bytes = CreateInstallFlow();

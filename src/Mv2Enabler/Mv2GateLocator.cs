@@ -88,6 +88,7 @@ internal static class Mv2GateLocator
     private static readonly BytePattern UserMayInstallV9ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA B9 1F 00 00 E8 ?? ?? ?? ?? " +
         "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV11ErrorPattern = BytePattern.Parse("4C 8D B4 24 50 02 00 00 4C 89 F1 BA C2 1F 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV10ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA BA 1F 00 00 E8 ?? ?? ?? ?? " +
         "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
@@ -308,6 +309,7 @@ internal static class Mv2GateLocator
         var isV8 = userMayInstallV8Matches.Count == 1;
         var isV9 = isV8 && TryValidateUserMayInstallV9(image.Bytes, text,
             text.RawOffset + userMayInstallV8Matches[0], out _, out _);
+        var isV11 = isV8 && TryValidateUserMayInstallV11(image.Bytes, text, text.RawOffset + userMayInstallV8Matches[0], out _, out _);
         var isV10 = isV8 && TryValidateUserMayInstallV10(image.Bytes, text,
             text.RawOffset + userMayInstallV8Matches[0], out _, out _);
         var userMayInstallV6Matches = !isV7 ? UserMayInstallV6Pattern.FindAll(sectionBytes) : [];
@@ -324,7 +326,7 @@ internal static class Mv2GateLocator
             : isV6
                 ? userMayInstallV6Matches
                 : UserMayInstallV5Pattern.FindAll(sectionBytes);
-        var chromeVersionLabel = isV10 ? "Chrome 156 stable" : isV9 ? "Chrome 156 early stable" : isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
+        var chromeVersionLabel = isV11 ? "Chrome 157" : isV10 ? "Chrome 156 stable" : isV9 ? "Chrome 156 early stable" : isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
 
         if (mustRemainDisabledMatches.Count != 1 ||
             reEnableMatches.Count != 1 ||
@@ -364,7 +366,7 @@ internal static class Mv2GateLocator
         var expectedResourceId = isV6 ? 8085 : 8115;
         IReadOnlyList<string> userMayInstallEvidence;
         string userMayInstallReason;
-        var userMayInstallValid = isV10
+        var userMayInstallValid = isV11 ? TryValidateUserMayInstallV11(image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason) : isV10
             ? TryValidateUserMayInstallV10(
                 image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason)
             : isV9
@@ -460,7 +462,7 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var ruleId = isV10
+        var ruleId = isV11 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v11" : isV10
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v10"
             : isV9
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v9"
@@ -471,7 +473,7 @@ internal static class Mv2GateLocator
             : isV6
                 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
                 : "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5";
-        var description = isV10
+        var description = isV11 ? "Force both Chrome 157 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch." : isV10
             ? "Force both Chrome 156 stable MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
             : isV9
             ? "Force both Chrome 156 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
@@ -783,6 +785,11 @@ internal static class Mv2GateLocator
         out IReadOnlyList<string> evidence, out string reason)
         => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV10ErrorPattern,
             "Chrome 156 stable", 8122, out evidence, out reason);
+
+    internal static bool TryValidateUserMayInstallV11(byte[] bytes, PeSection section, int rawOffset,
+        out IReadOnlyList<string> evidence, out string reason)
+        => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV11ErrorPattern,
+            "Chrome 157", 8130, out evidence, out reason);
 
     private static bool TryValidateInstallPolicyFlow(byte[] bytes, PeSection section, int rawOffset,
         BytePattern errorPattern, string chromeVersion, int resourceId,

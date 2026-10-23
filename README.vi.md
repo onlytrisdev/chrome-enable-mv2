@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.9.0` bổ sung rule v10 cho Google Chrome x64 `156.0.8078.48` đang cài và kiểm tra cập nhật launcher trước cả auto-launch lẫn dùng lại phiên Chrome không hiện GUI (#14). Các rule Chrome 156 cũ, Chrome 155 và Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.10.0` bổ sung rule v11 cho Google Chrome x64 `157.0.8103.15` đang cài. Các rule Chrome 156, Chrome 155 và Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
 
 ## GUI WinUI 3 (khuyên dùng)
 

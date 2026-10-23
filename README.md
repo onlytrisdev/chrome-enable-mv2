@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.9.0` adds rule v10 for installed Google Chrome `156.0.8078.48` x64 and checks launcher updates before automatic launch or windowless browser reuse (#14). Earlier Chrome 156, Chrome 155, and Chrome 151-154 rules remain available. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.10.0` adds rule v11 for installed Google Chrome `157.0.8103.15` x64. Earlier Chrome 156, Chrome 155, and Chrome 151-154 rules remain available. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -47,7 +47,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
-- Rules v8/v9/v10 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), or 8122 (Chrome 156.0.8078.48), respectively. No arbitrary resource ID is accepted.
+- Rules v8/v9/v10/v11 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), or 8130 (Chrome 157.0.8103.15), respectively. No arbitrary resource ID is accepted.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.

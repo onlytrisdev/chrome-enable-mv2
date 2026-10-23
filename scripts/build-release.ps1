@@ -1,10 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "3.9.0"
+    [string]$Version = "3.10.0"
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$localDotnetDir = Join-Path $projectRoot ".tmp\dotnet-sdk"
+if (Test-Path (Join-Path $localDotnetDir "dotnet.exe")) { $env:DOTNET_ROOT = $localDotnetDir; $env:PATH = "$localDotnetDir;$env:PATH" }
 $artifactRoot = Join-Path $projectRoot "artifacts"
 $releaseRoot = Join-Path $artifactRoot "release"
 $guiPublish = Join-Path $artifactRoot "win-x64-gui"
