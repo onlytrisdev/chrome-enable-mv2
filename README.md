@@ -30,9 +30,13 @@ When Chrome is already running and no update was found, both the one-click short
 
 The GUI supports Vietnamese, English, and Simplified Chinese. It selects the Windows UI language on first run and persists the user's choice under `%LOCALAPPDATA%\ChromeMv2Launcher`.
 
+![WinUI 3 GUI Launcher](docs/screenshots/gui-en.png)
+
 ### CLI
 
 The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2ctl.exe`. It does not require a separately installed .NET runtime.
+
+![mv2ctl CLI Analyze and Smoke Test](docs/screenshots/cli-en.png)
 
 ```powershell
 .\artifacts\win-x64-self-contained\mv2ctl.exe analyze

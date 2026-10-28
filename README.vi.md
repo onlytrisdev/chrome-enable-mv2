@@ -30,6 +30,8 @@ Tùy chọn **Đóng và mở lại Chrome chưa vá** mặc định tắt. Bậ
 
 Bản GitHub Release được đóng gói dạng ZIP self-contained. Sau khi giải nén, chạy `ChromeMv2Launcher.exe`; không cần cài .NET hoặc Windows App Runtime riêng.
 
+![Giao diện GUI WinUI 3](docs/screenshots/gui-en.png)
+
 ## CLI
 
 Đóng hoàn toàn Chrome, kể cả tiến trình chạy nền, sau đó chạy:
@@ -40,6 +42,8 @@ Bản GitHub Release được đóng gói dạng ZIP self-contained. Sau khi gi�
 ```
 
 Chrome phải được mở qua lệnh `launch` ở mỗi phiên mới vì bản vá RAM biến mất khi trình duyệt thoát. Extension MV2 chỉ cần nạp một lần; các lần sau `launch` sẽ giữ extension đã cài và ngăn Chrome thêm lại lý do `unsupported manifest version`.
+
+![Giao diện dòng lệnh mv2ctl CLI](docs/screenshots/cli-en.png)
 
 CLI vẫn yêu cầu đóng Chrome trước khi khởi tạo phiên vá mới. GUI có thể mở thêm cửa sổ trong phiên đang chạy nếu xác minh được toàn bộ patch RAM và đúng thư mục dữ liệu; phiên chưa xác minh sẽ bị từ chối. Nếu phiên bản Chrome mới không khớp duy nhất với toàn bộ semantic signature, công cụ cũng dừng an toàn và không ghi gì.
 
