@@ -15,6 +15,11 @@ internal static class ChromeDebugLauncher
         TimeSpan timeout)
     {
         EnsureChromeIsNotRunning();
+        // Pin and re-identify the DLL across process creation/load. A GUI report
+        // can be old by the time the user presses Launch; cache metadata is not
+        // authority to apply offsets to a replacement binary at the same path.
+        using var verifiedImage = new FileStream(installation.DllPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        VerifyImageIdentity(verifiedImage, target);
         if (target.State == PatchState.AlreadyPatched)
         {
             throw new InvalidOperationException("chrome.dll is already modified on disk; restore the signed original before using the RAM launcher.");
@@ -182,6 +187,14 @@ internal static class ChromeDebugLauncher
             $"0x{primary.Address.ToInt64():X}",
             primary.Original,
             target.ReplacementByte);
+    }
+
+    internal static void VerifyImageIdentity(Stream image, PatchTarget target)
+    {
+        image.Position = 0;
+        if (target.ImageSha256 is null || !Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(image))
+                .Equals(target.ImageSha256, StringComparison.Ordinal))
+            throw new InvalidOperationException("Chrome changed after analysis. Analyze Chrome again before launching.");
     }
 
     public static byte ReadRemoteByte(uint processId, long address)

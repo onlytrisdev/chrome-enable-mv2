@@ -4,7 +4,17 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.10.0` adds rule v11 for installed Google Chrome `157.0.8103.15` x64. Earlier Chrome 156, Chrome 155, and Chrome 151-154 rules remain available. Unknown layouts are accepted only when their complete rule-specific semantic signature passes; otherwise the analyzer fails closed.
+Version `3.11.0` adds **automatic local semantic offset discovery and a verified analysis cache**. The native .NET engine derives the error resource ID from Chrome's English language pack, decodes the MV2 predicates and validates a complete patch family. It does not download offset lists or require REA/Python on the user's computer. Verified legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
+
+### Automatic discovery and cache
+
+- First analysis of a changed DLL runs the local decoder/validator. Later invocations reuse the plan only after a full streaming DLL SHA-256 check, resource-pack identity check and verification of every planned original byte.
+- Cache files are stored in `%LOCALAPPDATA%\ChromeMv2Launcher\analysis-cache`, protected for the current Windows user with DPAPI and published atomically. Damaged, incompatible or inaccessible caches trigger normal analysis; only successful original-image plans are saved.
+- A changed DLL, English resource pack, or analysis engine invalidates the cache. File timestamps alone are never trusted. The DLL is re-hashed and pinned before launch so stale GUI results cannot authorize a replacement image.
+- The GUI distinguishes automatic discovery from a verified cache hit in Vietnamese, English and Simplified Chinese. CLI JSON exposes `CacheHit` and `AnalysisMilliseconds`; use `mv2ctl analyze --no-cache --json` to force discovery without reading or writing the cache.
+- The offset cache is separate from GitHub application-update checking. A cache hit avoids code scanning, not the short online release check.
+
+See [the bounded semantic engine and test evidence](docs/automatic-offsets.md).
 
 Vietnamese instructions: [README.vi.md](README.vi.md)
 
@@ -51,7 +61,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
-- Rules v8/v9/v10/v11 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), or 8130 (Chrome 157.0.8103.15), respectively. No arbitrary resource ID is accepted.
+- Rules v8/v9/v10/v11 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), or 8130 (Chrome 157.0.8103.15 / 157.0.8103.39), respectively. No arbitrary resource ID is accepted.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.

@@ -19,6 +19,9 @@ $guiProcesses = [System.Collections.Generic.List[System.Diagnostics.Process]]::n
 $settingsPath = Join-Path $env:LOCALAPPDATA 'ChromeMv2Launcher\restart-unpatched.txt'
 $hadSettings = Test-Path -LiteralPath $settingsPath
 $settingsBackup = if ($hadSettings) { [System.IO.File]::ReadAllBytes($settingsPath) } else { $null }
+$languagePath = Join-Path $env:LOCALAPPDATA 'ChromeMv2Launcher\language.txt'
+$hadLanguage = Test-Path -LiteralPath $languagePath
+$languageBackup = if ($hadLanguage) { [System.IO.File]::ReadAllBytes($languagePath) } else { $null }
 New-Item -ItemType Directory -Path (Split-Path -Parent $settingsPath) -Force | Out-Null
 [System.IO.File]::WriteAllText($settingsPath, 'disabled')
 
@@ -240,6 +243,25 @@ try
     $settings.Kill(); [void]$settings.WaitForExit(5000)
     Write-Host 'PASS: --show-ui keeps settings accessible while patched Chrome is running.'
 
+    foreach ($language in @(@('vi', 'cache đã xác minh'), @('en', 'verified cache'), @('zh-CN', '缓存已验证')))
+    {
+        [System.IO.File]::WriteAllText($languagePath, $language[0])
+        $localized = Start-TestGui 'show-ui' $autoProfile
+        $timer = [System.Diagnostics.Stopwatch]::StartNew()
+        $matched = $false
+        while ($timer.Elapsed.TotalSeconds -lt 20)
+        {
+            if ($localized.HasExited) { throw 'GUI exited during cache/localization verification.' }
+            $status = Find-Control $localized.Id 'AnalysisStatusText'
+            if ($null -ne $status -and $status.Current.Name.Contains($language[1], [System.StringComparison]::OrdinalIgnoreCase))
+            { $matched = $true; break }
+            Start-Sleep -Milliseconds 100
+        }
+        if (-not $matched) { throw "GUI did not display verified-cache status in $($language[0])." }
+        $localized.Kill(); [void]$localized.WaitForExit(5000)
+        Write-Host "PASS: verified-cache status is displayed in $($language[0])."
+    }
+
     if ($UpdateFixturePath)
     {
         $releaseLauncher = $launcher
@@ -367,6 +389,8 @@ finally
         finally { $gui.Dispose() }
     }
     Stop-TestBrowsers
+    if ($hadLanguage) { [System.IO.File]::WriteAllBytes($languagePath, $languageBackup) }
+    else { Remove-Item -LiteralPath $languagePath -Force -ErrorAction SilentlyContinue }
     $resolvedRoot = [System.IO.Path]::GetFullPath($testRoot)
     if (-not $resolvedRoot.StartsWith($temporaryBase + 'mv2gui-test-', [System.StringComparison]::OrdinalIgnoreCase))
     {

@@ -36,9 +36,11 @@ internal static class Program
 
     private static int RunAnalyze(string[] args)
     {
+        var useCache = !args.Contains("--no-cache", StringComparer.Ordinal);
+        args = args.Where(arg => arg != "--no-cache").ToArray();
         ParseCommonOptions(args, out var chromePath, out var dllPath, out var json, out _, out _);
         var installation = ChromeInstallationFinder.Find(chromePath, dllPath);
-        var report = AnalysisService.Analyze(installation);
+        var report = AnalysisService.Analyze(installation, useCache);
         if (json)
         {
             Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
@@ -391,7 +393,7 @@ internal static class Program
         Console.WriteLine("mv2ctl - Chrome Manifest V2 in-memory launcher");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  mv2ctl analyze [--chrome PATH] [--dll PATH] [--json]");
+        Console.WriteLine("  mv2ctl analyze [--chrome PATH] [--dll PATH] [--json] [--no-cache]");
         Console.WriteLine("  mv2ctl probe   [--chrome PATH] [--dll PATH] [--json]  (diagnostic only)");
         Console.WriteLine("  mv2ctl launch  [--chrome PATH] [--timeout SECONDS] [--json] [-- CHROME_ARGS]");
         Console.WriteLine("  mv2ctl smoke-test [--chrome PATH] [--timeout SECONDS] [--json]");

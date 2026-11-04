@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "3.10.0"
+    [string]$Version = "3.11.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,7 +38,7 @@ dotnet publish (Join-Path $projectRoot "src\Mv2Enabler.Gui\Mv2Enabler.Gui.csproj
 if ($LASTEXITCODE -ne 0) { throw "GUI publish failed." }
 
 dotnet publish (Join-Path $projectRoot "src\Mv2Enabler\Mv2Enabler.csproj") `
-    -c Release -r win-x64 --self-contained true -o $cliPublish
+    -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o $cliPublish
 if ($LASTEXITCODE -ne 0) { throw "CLI publish failed." }
 
 Get-ChildItem -Path $guiPublish, $cliPublish -Filter "*.pdb" -File | Remove-Item -Force

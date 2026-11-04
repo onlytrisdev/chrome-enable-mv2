@@ -22,7 +22,8 @@ internal sealed record PatchTarget(
     byte ReplacementByte,
     PatchState State,
     IReadOnlyList<PatchEdit> AdditionalEdits,
-    IReadOnlyList<string> Evidence);
+    IReadOnlyList<string> Evidence,
+    string? ImageSha256 = null);
 
 internal sealed record LocatorResult(
     bool Success,
@@ -33,6 +34,17 @@ internal sealed record LocatorResult(
 
 internal static class Mv2GateLocator
 {
+    // The semantic locator discovers the gates independently; this small,
+    // conservative grammar remains the verified startup-loop boundary.
+    internal static bool TryLocateStartup(PeImage image, out int branch, out IReadOnlyList<string> evidence)
+    {
+        var text = image.GetSection(".text");
+        var matches = StartupDisableBranchV6Pattern.FindAll(image.Bytes.AsSpan(text.RawOffset, text.RawSize));
+        branch = matches.Count == 1 ? text.RawOffset + matches[0] + 8 : -1;
+        evidence = [];
+        return branch >= 0 && TryValidateStartupDisableBranch(image.Bytes, text, branch,
+            StartupDisableTargetV6Pattern, out evidence, out _);
+    }
     private static readonly BytePattern SplitEntryPattern = BytePattern.Parse(
         "83 7A 50 02 ?? ?? 48 8B 8A 28 02 00 00 8B 41 30 " +
         "80 BA 08 02 00 00 00 75 ?? 8B 49 68 83 F9 01 75 ?? " +

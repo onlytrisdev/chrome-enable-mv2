@@ -112,7 +112,7 @@ public sealed partial class MainPage : Page
 
             if (result.Report.Success && result.Report.Target is not null)
             {
-                AnalysisStatusText.Text = T("Ready");
+                AnalysisStatusText.Text = ReadyStatus(result.Report);
                 AnalysisStatusDot.Background = Brush(Colors.LimeGreen);
             }
             else
@@ -515,7 +515,7 @@ public sealed partial class MainPage : Page
         }
         else
         {
-            AnalysisStatusText.Text = _analysis.Success ? T("Ready") : T("NoSafeTarget");
+            AnalysisStatusText.Text = _analysis.Success ? ReadyStatus(_analysis) : T("NoSafeTarget");
         }
 
         if (_analysis is null)
@@ -539,6 +539,10 @@ public sealed partial class MainPage : Page
 
     private static SolidColorBrush Brush(Windows.UI.Color color) => new(color);
 
+    private static string ReadyStatus(AnalysisReport report) => report.CacheHit
+        ? T("ReadyCached", report.AnalysisMilliseconds)
+        : report.Target?.RuleId == AutomaticGateLocator.Rule ? T("ReadyAutomatic", report.AnalysisMilliseconds) : T("Ready");
+
     private static string FormatReport(AnalysisReport report)
     {
         var builder = new StringBuilder();
@@ -547,6 +551,7 @@ public sealed partial class MainPage : Page
         builder.AppendLine($"DLL:     {report.DllPath}");
         builder.AppendLine($"Version: {report.Version}");
         builder.AppendLine($"SHA-256: {report.Sha256}");
+        builder.AppendLine($"Source:  {(report.CacheHit ? "verified local cache" : "local analysis")} ({report.AnalysisMilliseconds} ms)");
         builder.AppendLine($"Matches: pattern={report.PatternMatchCount}, semantic={report.SemanticMatchCount}");
         if (report.Target is { } target)
         {

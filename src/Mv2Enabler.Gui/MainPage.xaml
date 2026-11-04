@@ -65,7 +65,7 @@
                             Background="#FF9CA3AF"
                             CornerRadius="6" />
                     <StackPanel Grid.Column="1" Spacing="3">
-                        <TextBlock x:Name="AnalysisStatusText" FontSize="17" FontWeight="SemiBold" />
+                        <TextBlock x:Name="AnalysisStatusText" AutomationProperties.AutomationId="AnalysisStatusText" FontSize="17" FontWeight="SemiBold" />
                         <TextBlock x:Name="ChromeVersionText"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Text="—" />

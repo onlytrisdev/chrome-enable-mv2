@@ -4,7 +4,17 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.10.0` bổ sung rule v11 cho Google Chrome x64 `157.0.8103.15` đang cài. Các rule Chrome 156, Chrome 155 và Chrome 151-154 vẫn được giữ; layout lạ sẽ bị dừng an toàn nếu không vượt qua đầy đủ semantic signature riêng của rule.
+Phiên bản `3.11.0` bổ sung **tự tìm offset tại máy và cache kết quả đã xác minh**. Engine .NET đọc ID thông báo lỗi từ file ngôn ngữ tiếng Anh của Chrome, giải mã lệnh và kiểm tra đủ bộ gate MV2. User không cần REA/Python hoặc tải danh sách offset. Các rule cũ vẫn là phương án dự phòng cho layout đã hỗ trợ; luồng lệnh chưa hiểu sẽ bị từ chối, không hứa mọi Chrome tương lai đều tương thích.
+
+### Tự tìm offset và cache
+
+- DLL mới được quét bằng bộ giải mã/kiểm chứng cục bộ. Những lần mở sau chỉ dùng cache nếu SHA-256 toàn bộ DLL, file ngôn ngữ và các byte gốc cần patch đều khớp.
+- Cache ở `%LOCALAPPDATA%\ChromeMv2Launcher\analysis-cache`, được Windows DPAPI bảo vệ theo user và ghi thay thế nguyên tử. Cache hỏng, không tương thích hoặc không truy cập được sẽ được bỏ qua để phân tích lại; không cache kết quả thất bại/file đã sửa trên đĩa.
+- DLL, file ngôn ngữ hoặc engine thay đổi sẽ phân tích lại. Không chỉ dựa vào kích thước/thời gian file. Ngay trước launch, DLL được kiểm tra hash và giữ handle đọc để từ chối kết quả GUI đã cũ.
+- GUI Việt/Anh/Trung hiển thị đang dùng cache hay vừa tự tìm offset. CLI JSON có `CacheHit`, `AnalysisMilliseconds`; lệnh `mv2ctl analyze --no-cache --json` buộc tìm lại mà không đọc/ghi cache.
+- Cache offset độc lập với kiểm tra cập nhật ứng dụng trên GitHub. Cache giúp bỏ qua quét mã máy, không bỏ qua bước kiểm tra release ngắn lúc mở app.
+
+Xem [giới hạn engine và bằng chứng kiểm thử](docs/automatic-offsets.md).
 
 ## GUI WinUI 3 (khuyên dùng)
 

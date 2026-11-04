@@ -17,23 +17,46 @@ internal sealed class PeImage
 {
     private const ushort Pe32PlusMagic = 0x20b;
 
-    private PeImage(string path, byte[] bytes, ulong preferredImageBase, IReadOnlyList<PeSection> sections)
+    private PeImage(string path, byte[] bytes, ulong preferredImageBase, IReadOnlyList<PeSection> sections, long fileSize)
     {
         Path = path;
         Bytes = bytes;
         PreferredImageBase = preferredImageBase;
         Sections = sections;
+        FileSize = fileSize;
     }
 
     public string Path { get; }
     public byte[] Bytes { get; }
     public ulong PreferredImageBase { get; }
     public IReadOnlyList<PeSection> Sections { get; }
+    public long FileSize { get; }
 
     public static PeImage Load(string path)
     {
         var fullPath = System.IO.Path.GetFullPath(path);
         var bytes = File.ReadAllBytes(fullPath);
+        return Parse(fullPath, bytes, bytes.Length);
+    }
+
+    internal static PeImage LoadHeaders(Stream stream, string path)
+    {
+        // Warm cache reads only PE headers and planned bytes. A streaming full
+        // SHA-256 still identifies the DLL: size/mtime alone are not identity.
+        if (stream.Length < 0x100 || stream.Length > int.MaxValue) throw new InvalidDataException("Unsupported PE size.");
+        var prefix = new byte[0x40]; stream.Position = 0; stream.ReadExactly(prefix);
+        var pe = ReadInt32(prefix, 0x3c);
+        if (pe < 0 || pe > 1024 * 1024 || (long)pe + 24 > stream.Length) throw new InvalidDataException("Invalid PE header offset.");
+        var coff = new byte[24]; stream.Position = pe; stream.ReadExactly(coff);
+        var count = ReadUInt16(coff, 6); var optional = ReadUInt16(coff, 20);
+        var length = checked(pe + 24 + optional + count * 40);
+        if (count > 96 || length > 1024 * 1024 || length > stream.Length) throw new InvalidDataException("Invalid PE header extent.");
+        var bytes = new byte[length]; stream.Position = 0; stream.ReadExactly(bytes);
+        return Parse(path, bytes, stream.Length);
+    }
+
+    internal static PeImage Parse(string path, byte[] bytes, long fileSize)
+    {
         if (bytes.Length < 0x100 || bytes[0] != (byte)'M' || bytes[1] != (byte)'Z')
         {
             throw new InvalidDataException("File is not a valid DOS/PE image.");
@@ -47,9 +70,11 @@ internal sealed class PeImage
         }
 
         var coff = peOffset + 4;
+        if (ReadUInt16(bytes, coff) != 0x8664) throw new InvalidDataException("Only x64 AMD64 images are supported.");
         var numberOfSections = ReadUInt16(bytes, coff + 2);
         var optionalHeaderSize = ReadUInt16(bytes, coff + 16);
         var optional = coff + 20;
+        if (optionalHeaderSize < 112) throw new InvalidDataException("Truncated PE32+ optional header.");
         EnsureRange(bytes, optional, optionalHeaderSize);
         if (ReadUInt16(bytes, optional) != Pe32PlusMagic)
         {
@@ -75,11 +100,15 @@ internal sealed class PeImage
             var rawSize = ReadInt32(bytes, sectionOffset + 16);
             var rawOffset = ReadInt32(bytes, sectionOffset + 20);
             var characteristics = ReadUInt32(bytes, sectionOffset + 36);
-            EnsureRange(bytes, rawOffset, rawSize);
+            if (rawOffset < 0 || rawSize < 0 || virtualAddress < 0 || virtualSize < 0 ||
+                (long)rawOffset + rawSize > fileSize || (long)virtualAddress + rawSize > int.MaxValue)
+                throw new InvalidDataException("PE section points outside the file/address space.");
+            if (sections.Any(s => rawSize > 0 && s.RawSize > 0 && rawOffset < (long)s.RawOffset + s.RawSize && s.RawOffset < (long)rawOffset + rawSize))
+                throw new InvalidDataException("Overlapping PE file sections.");
             sections.Add(new PeSection(name, virtualAddress, virtualSize, rawOffset, rawSize, characteristics));
         }
 
-        return new PeImage(fullPath, bytes, imageBase, sections);
+        return new PeImage(System.IO.Path.GetFullPath(path), bytes, imageBase, sections, fileSize);
     }
 
     public PeSection GetSection(string name) =>

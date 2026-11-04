@@ -4,3 +4,6 @@ obj/
 artifacts/
 TestResults/
 work/
+debug.log
+logs/
+scratch_test_input.cs

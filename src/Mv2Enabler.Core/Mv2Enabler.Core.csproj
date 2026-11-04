@@ -16,6 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\docs\third-party\Iced.txt" Link="ThirdPartyNotices\Iced.txt"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\docs\automatic-offsets.md" Link="docs\automatic-offsets.md"
+          CopyToPublishDirectory="PreserveNewest" />
+    <PackageReference Include="Iced" Version="1.21.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <InternalsVisibleTo Include="mv2ctl" />
     <InternalsVisibleTo Include="Mv2Enabler.Tests" />
     <InternalsVisibleTo Include="ChromeMv2Launcher" />
