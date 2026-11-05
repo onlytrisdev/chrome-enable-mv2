@@ -4,7 +4,7 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-Phiên bản `3.11.0` bổ sung **tự tìm offset tại máy và cache kết quả đã xác minh**. Engine .NET đọc ID thông báo lỗi từ file ngôn ngữ tiếng Anh của Chrome, giải mã lệnh và kiểm tra đủ bộ gate MV2. User không cần REA/Python hoặc tải danh sách offset. Các rule cũ vẫn là phương án dự phòng cho layout đã hỗ trợ; luồng lệnh chưa hiểu sẽ bị từ chối, không hứa mọi Chrome tương lai đều tương thích.
+Phiên bản `3.12.0` bổ sung rule v12 cho Google Chrome x64 `158.0.8127.18` đang cài, cùng cơ chế **tự tìm offset tại máy và cache kết quả đã xác minh**. Engine .NET đọc ID thông báo lỗi từ file ngôn ngữ tiếng Anh của Chrome, giải mã lệnh và kiểm tra đủ bộ gate MV2. User không cần REA/Python hoặc tải danh sách offset. Các rule cũ vẫn là phương án dự phòng cho layout đã hỗ trợ; luồng lệnh chưa hiểu sẽ bị từ chối, không hứa mọi Chrome tương lai đều tương thích.
 
 ### Tự tìm offset và cache
 

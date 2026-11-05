@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.11.0` adds **automatic local semantic offset discovery and a verified analysis cache**. The native .NET engine derives the error resource ID from Chrome's English language pack, decodes the MV2 predicates and validates a complete patch family. It does not download offset lists or require REA/Python on the user's computer. Verified legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
+Version `3.12.0` adds rule v12 for installed Google Chrome `158.0.8127.18` x64, with **automatic local semantic offset discovery and a verified analysis cache**. The native .NET engine derives the error resource ID from Chrome's English language pack, decodes the MV2 predicates and validates a complete patch family. It does not download offset lists or require REA/Python on the user's computer. Verified legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
 
 ### Automatic discovery and cache
 
@@ -61,7 +61,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
-- Rules v8/v9/v10/v11 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), or 8130 (Chrome 157.0.8103.15 / 157.0.8103.39), respectively. No arbitrary resource ID is accepted.
+- Rules v8/v9/v10/v11/v12 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), 8130 (Chrome 157.0.8103.15 / 157.0.8103.39), or 8302 (Chrome 158.0.8127.18), respectively. No arbitrary resource ID is accepted.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.

@@ -9,7 +9,8 @@ public sealed class AutomaticGateLocatorTests
     [InlineData("154.0.1.2", true, true)]
     [InlineData("157.0.1.2", false, true)]
     [InlineData("157.0.1.2", true, false)]
-    [InlineData("158.0.1.2", false, false)]
+    [InlineData("158.0.1.2", false, true)]
+    [InlineData("159.0.1.2", false, false)]
     [InlineData("158.0.1.2", true, false)]
     [InlineData("unknown", false, false)]
     public void AutomaticSemanticRejectionIsNotBypassedByLegacyRules(string version, bool resources, bool allowed) =>

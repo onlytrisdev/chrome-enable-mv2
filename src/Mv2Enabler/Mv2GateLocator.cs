@@ -39,6 +39,16 @@ internal static class Mv2GateLocator
     internal static bool TryLocateStartup(PeImage image, out int branch, out IReadOnlyList<string> evidence)
     {
         var text = image.GetSection(".text");
+        var matchesV12 = StartupDisableBranchV12Pattern.FindAll(image.Bytes.AsSpan(text.RawOffset, text.RawSize));
+        if (matchesV12.Count == 1)
+        {
+            branch = text.RawOffset + matchesV12[0] + 8;
+            if (TryValidateStartupDisableBranch(image.Bytes, text, branch, StartupDisableTargetV12Pattern, out evidence, out _))
+            {
+                return true;
+            }
+        }
+
         var matches = StartupDisableBranchV6Pattern.FindAll(image.Bytes.AsSpan(text.RawOffset, text.RawSize));
         branch = matches.Count == 1 ? text.RawOffset + matches[0] + 8 : -1;
         evidence = [];
@@ -100,6 +110,7 @@ internal static class Mv2GateLocator
     private static readonly BytePattern UserMayInstallV9ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA B9 1F 00 00 E8 ?? ?? ?? ?? " +
         "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV12ErrorPattern = BytePattern.Parse("4C 8D B4 24 50 02 00 00 4C 89 F1 BA 6E 20 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV11ErrorPattern = BytePattern.Parse("4C 8D B4 24 50 02 00 00 4C 89 F1 BA C2 1F 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV10ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA BA 1F 00 00 E8 ?? ?? ?? ?? " +
@@ -124,6 +135,9 @@ internal static class Mv2GateLocator
     private static readonly BytePattern StartupDisableBranchV5Pattern = BytePattern.Parse(
         "4C 8B 74 24 40 4D 39 FE 0F 85 ?? ?? ?? ?? " +
         "48 8B 4C 24 48 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
+    private static readonly BytePattern StartupDisableBranchV12Pattern = BytePattern.Parse(
+        "48 8B 6C 24 40 4C 39 F5 0F 85 ?? ?? ?? ?? " +
+        "48 8B 4C 24 48 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
     private static readonly BytePattern StartupDisableBranchV6Pattern = BytePattern.Parse(
         "4C 8B 7C 24 48 4D 39 E7 0F 85 ?? ?? ?? ?? " +
         "48 8B 4C 24 50 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
@@ -137,6 +151,9 @@ internal static class Mv2GateLocator
     private static readonly BytePattern StartupDisableTargetV6Pattern = BytePattern.Parse(
         "48 89 C3 41 BD 01 00 00 00 4C 8D 74 24 40 B9 04 00 00 00 E8 ?? ?? ?? ?? " +
         "48 89 44 24 28 4C 89 6C 24 38 C7 00 00 00 80 00");
+    private static readonly BytePattern StartupDisableTargetV12Pattern = BytePattern.Parse(
+        "BB 01 00 00 00 4C 8D 6C 24 38 4D 89 F7 B9 04 00 00 00 49 89 C6 E8 ?? ?? ?? ?? " +
+        "48 89 44 24 20 48 89 5C 24 30 C7 00 00 00 80 00");
     private static readonly BytePattern ReturnFalseBlock = BytePattern.Parse("31 C0 EB ??");
 
     public static LocatorResult Locate(PeImage image)
@@ -321,6 +338,7 @@ internal static class Mv2GateLocator
         var isV8 = userMayInstallV8Matches.Count == 1;
         var isV9 = isV8 && TryValidateUserMayInstallV9(image.Bytes, text,
             text.RawOffset + userMayInstallV8Matches[0], out _, out _);
+        var isV12 = isV8 && TryValidateUserMayInstallV12(image.Bytes, text, text.RawOffset + userMayInstallV8Matches[0], out _, out _);
         var isV11 = isV8 && TryValidateUserMayInstallV11(image.Bytes, text, text.RawOffset + userMayInstallV8Matches[0], out _, out _);
         var isV10 = isV8 && TryValidateUserMayInstallV10(image.Bytes, text,
             text.RawOffset + userMayInstallV8Matches[0], out _, out _);
@@ -338,7 +356,7 @@ internal static class Mv2GateLocator
             : isV6
                 ? userMayInstallV6Matches
                 : UserMayInstallV5Pattern.FindAll(sectionBytes);
-        var chromeVersionLabel = isV11 ? "Chrome 157" : isV10 ? "Chrome 156 stable" : isV9 ? "Chrome 156 early stable" : isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
+        var chromeVersionLabel = isV12 ? "Chrome 158" : isV11 ? "Chrome 157" : isV10 ? "Chrome 156 stable" : isV9 ? "Chrome 156 early stable" : isV8 ? "Chrome 155" : isV7 ? "Chrome 154" : isV6 ? "Chrome 153" : "Chrome 152";
 
         if (mustRemainDisabledMatches.Count != 1 ||
             reEnableMatches.Count != 1 ||
@@ -378,7 +396,7 @@ internal static class Mv2GateLocator
         var expectedResourceId = isV6 ? 8085 : 8115;
         IReadOnlyList<string> userMayInstallEvidence;
         string userMayInstallReason;
-        var userMayInstallValid = isV11 ? TryValidateUserMayInstallV11(image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason) : isV10
+        var userMayInstallValid = isV12 ? TryValidateUserMayInstallV12(image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason) : isV11 ? TryValidateUserMayInstallV11(image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason) : isV10
             ? TryValidateUserMayInstallV10(
                 image.Bytes, text, userMayInstallRawOffset, out userMayInstallEvidence, out userMayInstallReason)
             : isV9
@@ -396,8 +414,8 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var startupDisableBranchPattern = (isV6 || isV7) ? StartupDisableBranchV6Pattern : StartupDisableBranchV5Pattern;
-        var startupDisableTargetPattern = (isV6 || isV7) ? StartupDisableTargetV6Pattern : StartupDisableTargetV5Pattern;
+        var startupDisableBranchPattern = isV12 ? StartupDisableBranchV12Pattern : (isV6 || isV7) ? StartupDisableBranchV6Pattern : StartupDisableBranchV5Pattern;
+        var startupDisableTargetPattern = isV12 ? StartupDisableTargetV12Pattern : (isV6 || isV7) ? StartupDisableTargetV6Pattern : StartupDisableTargetV5Pattern;
         var startupDisableBranchMatches = startupDisableBranchPattern.FindAll(sectionBytes);
         if (startupDisableBranchMatches.Count != 1)
         {
@@ -474,7 +492,7 @@ internal static class Mv2GateLocator
             return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
         }
 
-        var ruleId = isV11 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v11" : isV10
+        var ruleId = isV12 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v12" : isV11 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v11" : isV10
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v10"
             : isV9
             ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v9"
@@ -485,7 +503,7 @@ internal static class Mv2GateLocator
             : isV6
                 ? "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v6"
                 : "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v5";
-        var description = isV11 ? "Force both Chrome 157 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch." : isV10
+        var description = isV12 ? "Force both Chrome 158 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch." : isV11 ? "Force both Chrome 157 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch." : isV10
             ? "Force both Chrome 156 stable MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
             : isV9
             ? "Force both Chrome 156 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch."
@@ -797,6 +815,11 @@ internal static class Mv2GateLocator
         out IReadOnlyList<string> evidence, out string reason)
         => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV10ErrorPattern,
             "Chrome 156 stable", 8122, out evidence, out reason);
+
+    internal static bool TryValidateUserMayInstallV12(byte[] bytes, PeSection section, int rawOffset,
+        out IReadOnlyList<string> evidence, out string reason)
+        => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV12ErrorPattern,
+            "Chrome 158", 8302, out evidence, out reason);
 
     internal static bool TryValidateUserMayInstallV11(byte[] bytes, PeSection section, int rawOffset,
         out IReadOnlyList<string> evidence, out string reason)

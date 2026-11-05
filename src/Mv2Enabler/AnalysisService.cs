@@ -75,7 +75,7 @@ internal static class AnalysisService
         }
         if (locator.Target is { } target && target.RuleId != AutomaticGateLocator.Rule)
         {
-            var expectedMajor = target.RuleId.EndsWith(".v11", StringComparison.Ordinal) ? "157." : target.RuleId.EndsWith(".v10", StringComparison.Ordinal)
+            var expectedMajor = target.RuleId.EndsWith(".v12", StringComparison.Ordinal) ? "158." : target.RuleId.EndsWith(".v11", StringComparison.Ordinal) ? "157." : target.RuleId.EndsWith(".v10", StringComparison.Ordinal)
                 ? "156."
                 : target.RuleId.EndsWith(".v9", StringComparison.Ordinal)
                 ? "156."
@@ -116,5 +116,5 @@ internal static class AnalysisService
 
     internal static bool CanUseLegacyFallback(string version, bool resourceAvailable) =>
         Version.TryParse(version, out var parsed) &&
-        (parsed.Major is >= 151 and <= 154 || !resourceAvailable && parsed.Major is >= 155 and <= 157);
+        (parsed.Major is >= 151 and <= 154 || !resourceAvailable && parsed.Major is >= 155 and <= 158);
 }

@@ -22,7 +22,7 @@ and reason-removal contracts. The startup inline predicate is correlated with
 the existing conservative, verified startup-loop grammar; this last boundary is
 **not** an arbitrary future-layout recognizer. All edits are grouped into one
 plan. Legacy fallback is limited to the older 151–154 families and known
-155–157 layouts when the English PAK is absent. A failed automatic semantic
+155–158 layouts when the English PAK is absent. A failed automatic semantic
 validation with the anchor present is not silently overridden by a legacy rule.
 
 This is deliberately narrower than unrestricted binary understanding. A new
