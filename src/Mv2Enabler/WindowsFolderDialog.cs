@@ -31,37 +31,28 @@ internal static class WindowsFolderDialog
 
     public static bool SelectFolder(IntPtr dialog, string folderPath)
     {
-        using var clipboard = new ClipboardTextScope(folderPath);
-        var dialogThread = NativeMethods.GetWindowThreadProcessId(dialog, out _);
-        var currentThread = NativeMethods.GetCurrentThreadId();
-        var attached = dialogThread != currentThread && NativeMethods.AttachThreadInput(currentThread, dialogThread, true);
+        // Use the dialog's filename field, not global Ctrl+L/clipboard input.
+        // Focus can remain in another window, silently selecting the previous
+        // directory and making a runtime test exercise the wrong extension.
+        folderPath = Path.GetFullPath(folderPath);
+        var edit = NativeMethods.GetDlgItem(dialog, 0x480); // edt1 (common dialog)
+        if (edit == IntPtr.Zero || !Directory.Exists(folderPath)) return false;
+        var text = Marshal.StringToHGlobalUni(folderPath);
         try
         {
-            _ = NativeMethods.SetForegroundWindow(dialog);
-            _ = NativeMethods.SetFocus(dialog);
-            Thread.Sleep(150);
-            SendVirtualKey(NativeMethods.VkControl, keyUp: false);
-            SendVirtualKey(NativeMethods.VkL, keyUp: false);
-            SendVirtualKey(NativeMethods.VkL, keyUp: true);
-            SendVirtualKey(NativeMethods.VkControl, keyUp: true);
-            Thread.Sleep(100);
-            SendVirtualKey(NativeMethods.VkControl, keyUp: false);
-            SendVirtualKey(NativeMethods.VkV, keyUp: false);
-            SendVirtualKey(NativeMethods.VkV, keyUp: true);
-            SendVirtualKey(NativeMethods.VkControl, keyUp: true);
-            SendVirtualKey(NativeMethods.VkReturn, keyUp: false);
-            SendVirtualKey(NativeMethods.VkReturn, keyUp: true);
-            Thread.Sleep(500);
+            if (NativeMethods.SendMessageW(edit, 0x000c, IntPtr.Zero, text) == IntPtr.Zero) return false; // WM_SETTEXT
         }
-        finally
+        finally { Marshal.FreeHGlobal(text); }
+        var readback = Marshal.AllocHGlobal((folderPath.Length + 2) * 2);
+        try
         {
-            if (attached)
-            {
-                _ = NativeMethods.AttachThreadInput(currentThread, dialogThread, false);
-            }
+            Marshal.WriteInt16(readback, 0);
+            if (NativeMethods.SendMessageW(edit, 0x000d, new IntPtr(folderPath.Length + 2), readback).ToInt64() != folderPath.Length) return false; // WM_GETTEXT
+            if (!string.Equals(Marshal.PtrToStringUni(readback), folderPath, StringComparison.OrdinalIgnoreCase)) return false;
         }
-
-        var selectButton = FindSelectFolderButton(dialog);
+        finally { Marshal.FreeHGlobal(readback); }
+        var selectButton = NativeMethods.GetDlgItem(dialog, 1);
+        if (selectButton == IntPtr.Zero) selectButton = FindSelectFolderButton(dialog);
         if (selectButton != IntPtr.Zero)
         {
             _ = NativeMethods.PostMessageW(selectButton, NativeMethods.BmClick, IntPtr.Zero, IntPtr.Zero);
@@ -139,33 +130,4 @@ internal static class WindowsFolderDialog
         return result;
     }
 
-    private static void SendVirtualKey(ushort virtualKey, bool keyUp)
-    {
-        SendKeyboardInput(virtualKey, '\0', keyUp ? NativeMethods.KeyEventKeyUp : 0);
-    }
-
-    private static void SendKeyboardInput(ushort virtualKey, char scanCode, uint flags)
-    {
-        var inputs = new[]
-        {
-            new NativeMethods.Input
-            {
-                type = NativeMethods.InputKeyboard,
-                union = new NativeMethods.InputUnion
-                {
-                    keyboard = new NativeMethods.KeyboardInput
-                    {
-                        virtualKey = virtualKey,
-                        scanCode = scanCode,
-                        flags = flags
-                    }
-                }
-            }
-        };
-
-        if (NativeMethods.SendInput(1, inputs, Marshal.SizeOf<NativeMethods.Input>()) != 1)
-        {
-            throw NativeMethods.Error("SendInput failed while controlling the folder dialog");
-        }
-    }
 }

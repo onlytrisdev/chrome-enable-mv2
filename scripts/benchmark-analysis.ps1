@@ -17,7 +17,7 @@ function Measure-Analysis([bool]$Cold)
     $timer.Stop()
     if ($exit -ne 0) { throw "Analysis failed ($exit): $json" }
     $report = ($json -join "`n") | ConvertFrom-Json
-    if (-not $report.Success -or $report.Target.RuleId -ne 'chromium.mv2-semantic.local.v1')
+    if (-not $report.Success -or $report.Target.RuleId -ne 'chromium.mv2-semantic.local.v2')
     { throw 'Benchmark did not exercise automatic semantic discovery.' }
     if ($Cold -and $report.CacheHit) { throw 'Forced analysis unexpectedly used cache.' }
     [pscustomobject]@{ Mode = $(if ($Cold) { 'forced-scan' } else { 'cache' });

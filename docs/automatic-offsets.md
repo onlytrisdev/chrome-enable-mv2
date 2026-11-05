@@ -1,4 +1,4 @@
-# Automatic local offset discovery (3.11.0)
+# Automatic local offset discovery (3.13.0)
 
 ## Accepted grammar, not fuzzy patching
 
@@ -18,9 +18,23 @@ plan. Partial-register writes are tracked by known-bit masks.
 
 Installation acceptance and its resource-backed rejection must converge on the
 same callback. Disable and re-enable suffixes must match their reason-output
-and reason-removal contracts. The startup inline predicate is correlated with
-the existing conservative, verified startup-loop grammar; this last boundary is
-**not** an arbitrary future-layout recognizer. All edits are grouped into one
+and reason-removal contracts. `StartupLoopLocator` decodes the startup predicate's
+bounded `.pdata` function into a CFG. It proves that insertion and the empty/nonempty
+guard use the same stack collection; checks the allocator, exact reason store,
+three-field reason container and disable-call arguments; cross-correlates registrar
+and extension-ID helpers with the re-enable path; and validates the backward
+iterator branch and common cleanup. Exactly one forward entry must satisfy the
+whole contract. Only that entry's displacement is neutralized, never a backward
+loop branch. Register allocation, stack displacement, short/near JNE encoding and
+branch distances are decoded, not selected by the V6/V12 startup signatures.
+
+For compiler-adjacent cold blocks, cookie-check failure calls are treated as
+nonreturning only after checking the dominating mismatch, matching stack/global
+cookie and the helper's matching global comparison leading to Windows `INT 29h`
+fast-fail. Merely seeing a CALL or a nearby reason constant is insufficient.
+See Microsoft's [`__fastfail` contract](https://learn.microsoft.com/en-us/cpp/intrinsics/fastfail?view=msvc-170).
+This remains a conservative supported grammar, **not** an arbitrary future-layout
+recognizer. All edits are grouped into one
 plan. Legacy fallback is limited to the older 151–154 families and known
 155–158 layouts when the English PAK is absent. A failed automatic semantic
 validation with the anchor present is not silently overridden by a legacy rule.
@@ -107,3 +121,39 @@ The installed Chrome 157 DLL SHA-256 remained
 `F82FFEDFAFB637A0375C82E1A5AFF9B71C12F8937E55C09C3B6BA85A8C5675FF`.
 Receipts are retained locally under `work\semantic-auto-probe`, including the
 final benchmark JSON, GUI integration log and both runtime/restart JSON reports.
+
+### Local verification record (2026-11-05, 3.13.0)
+
+- Automatic rule `chromium.mv2-semantic.local.v2`; no automatic call to the
+  legacy startup signature locator. Legacy fallback rules are unchanged.
+- 127 .NET tests passed: 121 portable and 6 installed/runtime integration tests.
+  New fixtures cover GPR/frame changes, short/near entry branches, incorrect
+  collection/extension/cleanup, reason value/address/count/span, registrar/ID
+  helper mismatches, inverted entry/backedge and wrong loop exit. Invalid inline
+  instruction candidates are skipped without losing subsequent valid gates.
+- An in-memory copy of the installed Chrome 158 DLL was changed to reverse the
+  entry CMP's register operands (equivalent for JNE). Legacy startup signatures
+  rejected it, while semantic discovery approved exactly the same edit set.
+  Changing the cookie helper's global or fast-fail interrupt rejected the plan.
+- 15 GUI checks passed on Chrome 158, including vi/en/zh-CN cache status,
+  one-click launch, windowless session reuse and restart confirmations.
+- Both self-contained CLI runtime tests installed the exact MV2 smoke extension
+  through the actual Load unpacked folder dialog, then found its background page
+  again after a full browser restart in the same isolated profile. The dialog
+  helper now sets and reads back its path directly instead of relying on global
+  keyboard focus/clipboard. Test profiles were removed afterward.
+
+| Chrome x64 | Forced-scan median | Cache-hit median | Samples per mode | MV2 UI + restart |
+| --- | --- | --- | --- | --- |
+| 156.0.8078.12 | 628 ms | 290 ms | 5 | PASS |
+| 158.0.8127.18 | 664 ms | 310 ms | 5 | PASS |
+
+These are local full-analyzer timings, including DLL hashing, not disk-cold I/O
+or Chrome-launch timings. They do not establish support for Chrome 159 or 160.
+The installed Chrome 158 DLL SHA-256 stayed
+`F818FECCCDEE5C05F7A8523B990F6D820722D550C0E520EE4A093BEA2ACA7FE7`;
+the Chrome 156 fixture stayed
+`D41B9AA516B6DC1A785F814F49CB6D5A7B462FC33E1010E4EA7DE81345FC5BBC`.
+New receipts use the `startup-v2-*` prefix under `work\semantic-auto-probe`.
+Release packaging uses the same verified engine and includes self-contained
+GUI/CLI ZIP archives and `SHA256SUMS.txt`.

@@ -4,7 +4,7 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.12.0` adds rule v12 for installed Google Chrome `158.0.8127.18` x64, with **automatic local semantic offset discovery and a verified analysis cache**. The native .NET engine derives the error resource ID from Chrome's English language pack, decodes the MV2 predicates and validates a complete patch family. It does not download offset lists or require REA/Python on the user's computer. Verified legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
+Version `3.13.0` replaces the automatic engine's startup byte-pattern dependency with bounded CFG/data-flow validation. It correlates the selected-extension collection, forward loop-entry guard, reason container, registrar/extension-ID helpers and cleanup, leaving the backward iterator branch untouched. The same engine is tested on Chrome x64 `156.0.8078.12` and `158.0.8127.18`. **Automatic local offset discovery and a verified analysis cache** require no offset downloads or REA/Python on user machines. Legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
 
 ### Automatic discovery and cache
 

@@ -84,6 +84,17 @@ public sealed class AutomaticGateLocatorTests
     }
 
     [Fact]
+    public void DiscoverySkipsInvalidCandidateAndStillFindsFollowingChecker()
+    {
+        // A plausible CMP followed by an overlength instruction in inline data.
+        // The candidate must fail locally, not abort discovery of later code.
+        var noise = new byte[] { 0xcc, 0x83, 0xf9, 2 }.Concat(Enumerable.Repeat((byte)0x66, 16));
+        var image = SemanticFixtures.Image(noise.Concat(Checker()).ToArray());
+        Assert.Equal((1, 0), new AutomaticGateLocator(image).DiscoverCounts());
+        Assert.False(AutomaticGateLocator.Locate(image, new(65000, "test")).Success);
+    }
+
+    [Fact]
     public void DecodesLongBranchWithoutAssumingShortOffsets() => Assert.True(
         new AutomaticGateLocator(SemanticFixtures.Image(Checker(farBranch: true))).ValidateChecker(0x401, false));
 

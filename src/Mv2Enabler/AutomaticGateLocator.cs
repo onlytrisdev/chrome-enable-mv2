@@ -7,7 +7,7 @@ namespace Mv2Enabler;
 // discovered locally. Unsupported instructions/layouts must reject the plan.
 internal sealed class AutomaticGateLocator
 {
-    internal const string Rule = "chromium.mv2-semantic.local.v1";
+    internal const string Rule = "chromium.mv2-semantic.local.v2";
     private readonly PeImage image;
     private readonly PeSection text;
     private readonly Reader reader;
@@ -58,6 +58,12 @@ internal sealed class AutomaticGateLocator
             return gate is not null && (integer || Boundary(compareRaw)) && Prove(gate, null, null);
         }
         catch (Exception error) when (error is InvalidDataException or ArgumentException or OverflowException) { return false; }
+    }
+
+    internal (int Objects, int Integers) DiscoverCounts()
+    {
+        var gates = Discover();
+        return (gates.Count(g => !g.Integer), gates.Count(g => g.Integer));
     }
 
     private Instruction At(int address)
@@ -179,18 +185,18 @@ internal sealed class AutomaticGateLocator
             try
             {
                 var cmp = At(p);
-            if (cmp.Mnemonic != Mnemonic.Cmp || !Imm(cmp, 1, 2)) continue;
-            var branch = At(Next(cmp));
-            if (branch.Mnemonic != Mnemonic.Jg || !Inside(Target(branch))) continue;
-            Gate? gate;
-            if (cmp.Op0Kind == OpKind.Memory)
-            {
-                // Discard unrelated compare sites before the more expensive
-                // function-boundary and predicate-partition checks.
-                gate = ObjectGate(p, cmp, branch);
-                if (gate is null || !Boundary(p)) continue;
-            }
-            else gate = IntegerGate(p, cmp, branch);
+                if (cmp.Mnemonic != Mnemonic.Cmp || !Imm(cmp, 1, 2)) continue;
+                var branch = At(Next(cmp));
+                if (branch.Mnemonic != Mnemonic.Jg || !Inside(Target(branch))) continue;
+                Gate? gate;
+                if (cmp.Op0Kind == OpKind.Memory)
+                {
+                    // Discard unrelated compare sites before the more expensive
+                    // function-boundary and predicate-partition checks.
+                    gate = ObjectGate(p, cmp, branch);
+                    if (gate is null || !Boundary(p)) continue;
+                }
+                else gate = IntegerGate(p, cmp, branch);
                 if (gate is not null) result.Add(gate);
             }
             catch (Exception error) when (error is InvalidDataException or ArgumentException or OverflowException) { continue; }
@@ -358,15 +364,20 @@ internal sealed class AutomaticGateLocator
         return false;
     }
 
-    private bool RemovalPath(int address)
+    private bool RemovalPath(int address, out int factory, out int extensionId)
     {
-        var reason = false; var calls = 0;
+        factory = extensionId = -1;
+        var reason = false; var calls = new List<int>();
         for (var n = 0; n < 24; n++)
         {
             var i = At(address);
             if (i.Mnemonic == Mnemonic.Mov && i.Op0Register == Register.R8D && Imm(i, 1, 0x800000)) reason = true;
-            if (i.FlowControl == FlowControl.Call) { if (!Inside(Target(i))) return false; calls++; }
-            if (i.Mnemonic == Mnemonic.Jmp) return i.FlowControl == FlowControl.UnconditionalBranch && Inside(Target(i)) && reason && calls >= 2;
+            if (i.FlowControl == FlowControl.Call) { if (!Inside(Target(i))) return false; calls.Add(Target(i)); }
+            if (i.Mnemonic == Mnemonic.Jmp)
+            {
+                if (i.FlowControl != FlowControl.UnconditionalBranch || !Inside(Target(i)) || !reason || calls.Count != 3) return false;
+                factory = calls[1]; extensionId = calls[2]; return true;
+            }
             if (i.FlowControl is not FlowControl.Next and not FlowControl.Call) return false;
             address = Next(i);
         }
@@ -416,13 +427,13 @@ internal sealed class AutomaticGateLocator
 
     private LocatorResult Locate(ChromeResourceAnchor resource)
     {
-        if (!text.IsExecutable || !Mv2GateLocator.TryLocateStartup(image, out var startup, out var startupEvidence) || Owner(startup) is not { } startupOwner)
-            throw new InvalidDataException("Verified startup-loop grammar was not found uniquely.");
+        if (!text.IsExecutable) throw new InvalidDataException("The code section is not executable.");
         var gates = Discover();
         var objects = gates.Where(g => !g.Integer).ToList(); var integers = gates.Where(g => g.Integer).ToList();
         if (objects.Count != 6 || integers.Count != 1 || objects.Select(g => g.Layout).Distinct().Count() != 1)
             throw new InvalidDataException($"Expected six consistent object gates and one integer gate, found {objects.Count}/{integers.Count}.");
         var pure = new List<Gate>(); Gate? disable = null, enable = null, install = null, startupGate = null;
+        var startupAction = -1; var registrarFactory = -1; var extensionIdGetter = -1;
         foreach (var gate in objects)
         {
             var target = Target(gate.Branch); var first = At(target);
@@ -438,18 +449,26 @@ internal sealed class AutomaticGateLocator
             var affected = Run(gate, new(2, 1, 0, 0), normals);
             if (affected.Kind != "action" || !Prove(gate, normals, affected.Address, zero))
                 throw new InvalidDataException("Clone predicate did not converge on the affected/unaffected paths.");
-            if (gate.Function == startupOwner)
-            { if (startupGate is not null) throw new InvalidDataException("Ambiguous startup gate."); startupGate = gate; }
-            else if (zero is not null && affected.Registers[RegIndex(Register.RAX)] == 0x800000 && DisableSuffix(affected.Address, normals.Single(p => p != target)))
+            if (zero is not null && affected.Registers[RegIndex(Register.RAX)] == 0x800000 && DisableSuffix(affected.Address, normals.Single(p => p != target)))
             { if (disable is not null) throw new InvalidDataException("Ambiguous disable gate."); disable = gate; }
-            else if (Epilogue(affected.Address) && RemovalPath(target))
-            { if (enable is not null) throw new InvalidDataException("Ambiguous re-enable gate."); enable = gate; }
+            else if (Epilogue(affected.Address) && RemovalPath(target, out var factory, out var id))
+            {
+                if (enable is not null) throw new InvalidDataException("Ambiguous re-enable gate.");
+                enable = gate; registrarFactory = factory; extensionIdGetter = id;
+            }
             else if (InstallPaths(gate, affected.Address, resource.ResourceId))
             { if (install is not null) throw new InvalidDataException("Ambiguous installation gate."); install = gate; }
-            else throw new InvalidDataException("Unrecognized MV2 clone action.");
+            else
+            {
+                if (startupGate is not null || gate.Function is null) throw new InvalidDataException("Unrecognized/ambiguous startup predicate.");
+                startupGate = gate; startupAction = affected.Address;
+            }
         }
         if (pure.Count != 2 || disable is null || enable is null || install is null || startupGate is null || !Prove(integers[0], null, null))
             throw new InvalidDataException("Incomplete semantic patch family.");
+        var startupRange = functions.Single(f => f.Start == startupGate.Function);
+        var startup = new StartupLoopLocator(image, new(startupRange.Start, startupRange.End, startupGate.Start,
+            Target(startupGate.Branch), startupAction, startupGate.Root, registrarFactory, extensionIdGetter)).Locate();
         pure.Sort((a, b) => a.Start.CompareTo(b.Start));
         var edits = new List<PatchEdit>();
         foreach (var gate in new[] { pure[0], pure[1], integers[0], disable, enable, install })
@@ -461,8 +480,7 @@ internal sealed class AutomaticGateLocator
             { edits.Add(new(address, image.RawOffsetToRva(address), 0x0f, 0x90)); edits.Add(new(address + 1, image.RawOffsetToRva(address + 1), 0x8f, 0xe9)); }
             else throw new InvalidDataException("Unsupported manifest-branch encoding.");
         }
-        for (var k = 2; k < 6; k++)
-            if (image.Bytes[startup + k] != 0) edits.Add(new(startup + k, image.RawOffsetToRva(startup + k), image.Bytes[startup + k], 0));
+        edits.AddRange(startup.Edits);
         var primary = edits[0];
         var evidence = new List<string>
         {
@@ -470,9 +488,9 @@ internal sealed class AutomaticGateLocator
             "Six object gates share locally inferred manifest, pointer, type, location and flag fields.",
             "Decoded supported predicate grammar checked over all comparison equivalence classes; unknown reads/instructions reject the plan.",
             "Two return-value checkers, bounded integer bitset, disable output, re-enable removal and install-policy/error callback were validated.",
-            "Startup inline gate was independently correlated with the verified startup-loop grammar."
+            "Startup entry was decoded and correlated with selected-collection insertion, empty guard, reason data flow and untouched backedge."
         };
-        evidence.AddRange(startupEvidence);
+        evidence.AddRange(startup.Evidence);
         var patch = new PatchTarget(Rule, "Automatically discovered and validated local MV2 gate family.", pure[0].Start,
             primary.PatchRawOffset, primary.PatchRva, primary.ExpectedByte, primary.ReplacementByte, PatchState.Original, edits.Skip(1).ToArray(), evidence);
         return new(true, patch, pure.Count, pure.Count, ["Automatic local semantic discovery approved one complete patch set."]);

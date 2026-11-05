@@ -109,6 +109,8 @@ internal static class UiFunctionalTestService
 
             dialogTitle = WindowsFolderDialog.GetTitle(dialog);
             folderDialogClosed = WindowsFolderDialog.SelectFolder(dialog, extensionPath);
+            if (!folderDialogClosed)
+                throw new InvalidOperationException($"The folder dialog did not accept the exact test-extension directory: {extensionPath}");
 
             Thread.Sleep(1500);
             var extensionInfoResponse = ChromeDevTools.Evaluate(

@@ -34,8 +34,8 @@ internal sealed record LocatorResult(
 
 internal static class Mv2GateLocator
 {
-    // The semantic locator discovers the gates independently; this small,
-    // conservative grammar remains the verified startup-loop boundary.
+    // Legacy-only startup grammar. AutomaticGateLocator uses StartupLoopLocator
+    // independently and must not depend on these version-specific signatures.
     internal static bool TryLocateStartup(PeImage image, out int branch, out IReadOnlyList<string> evidence)
     {
         var text = image.GetSection(".text");
