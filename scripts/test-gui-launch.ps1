@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$LauncherPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\win-x64-gui\ChromeMv2Launcher.exe'),
-    [string]$UpdateFixturePath = ''
+    [string]$UpdateFixturePath = '',
+    [switch]$WithForeignBrowser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,13 @@ $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).
 $testRoot = Join-Path $temporaryBase ('mv2gui-test-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $guiProcesses = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
+$foreignBrowser = $null
+$chromePath = @(
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
+) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $chromePath) { throw 'No default Chrome installation was found.' }
 $settingsPath = Join-Path $env:LOCALAPPDATA 'ChromeMv2Launcher\restart-unpatched.txt'
 $hadSettings = Test-Path -LiteralPath $settingsPath
 $settingsBackup = if ($hadSettings) { [System.IO.File]::ReadAllBytes($settingsPath) } else { $null }
@@ -182,12 +190,18 @@ function Assert-BrowserAlive([string]$Profile)
     throw "Chrome did not remain available after the launcher exited. Profile: $Profile; matching processes: $($processes.Count); last endpoint error: $lastError"
 }
 
-function Stop-TestBrowsers
+function Get-TestBrowsers
 {
-    $testBrowsers = Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object {
+    Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | Where-Object {
+        $_.ExecutablePath -and $_.ExecutablePath.Equals($chromePath, [System.StringComparison]::OrdinalIgnoreCase) -and
         $_.CommandLine -and $_.CommandLine.Contains($testRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
         -not $_.CommandLine.Contains('--type=', [System.StringComparison]::OrdinalIgnoreCase)
     }
+}
+
+function Stop-TestBrowsers
+{
+    $testBrowsers = Get-TestBrowsers
     foreach ($browser in $testBrowsers)
     {
         $process = Get-Process -Id $browser.ProcessId -ErrorAction SilentlyContinue
@@ -198,14 +212,26 @@ function Stop-TestBrowsers
         }
     }
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
-    while ((Get-Process -Name chrome -ErrorAction SilentlyContinue) -and $timer.Elapsed.TotalSeconds -lt 5)
+    while ((Get-TestBrowsers) -and $timer.Elapsed.TotalSeconds -lt 5)
     {
         Start-Sleep -Milliseconds 100
     }
+    if ($null -ne $foreignBrowser -and $foreignBrowser.HasExited)
+    { throw 'The unrelated chrome.exe fixture was terminated during the GUI test.' }
 }
 
 try
 {
+    if ($WithForeignBrowser)
+    {
+        $foreignDirectory = Join-Path $testRoot 'foreign browser'
+        New-Item -ItemType Directory -Path $foreignDirectory | Out-Null
+        $foreignExecutable = Join-Path $foreignDirectory 'chrome.exe'
+        Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\ping.exe') -Destination $foreignExecutable
+        $foreignBrowser = Start-Process -FilePath $foreignExecutable -ArgumentList @('-n', '600', '127.0.0.1') `
+            -WindowStyle Hidden -RedirectStandardOutput (Join-Path $foreignDirectory 'fixture.log') -PassThru
+        if ($foreignBrowser.WaitForExit(100)) { throw 'The foreign browser-name fixture exited early.' }
+    }
     $autoProfile = Join-Path $testRoot 'auto with spaces'
     $autoGui = Start-TestGui 'auto' $autoProfile
     Assert-GuiExited $autoGui
@@ -335,7 +361,6 @@ try
     }
 
     $forceProfile = Join-Path $testRoot 'force'
-    $chromePath = Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
     $background = Start-Process -FilePath $chromePath -WindowStyle Hidden -PassThru -ArgumentList @(
         '--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0',
         ('--user-data-dir="' + $forceProfile + '"'), 'about:blank')
@@ -371,12 +396,17 @@ try
             $updateProfile = Join-Path $testRoot 'update-offered'
             $updateGui = Start-TestGui 'auto' $updateProfile
             Wait-TestControl $updateGui 'InstallUpdateButton'
-            if ((Test-Path -LiteralPath $updateProfile) -or (Get-Process -Name chrome -ErrorAction SilentlyContinue))
+            if ((Test-Path -LiteralPath $updateProfile) -or (Get-TestBrowsers))
             { throw 'Automatic launch bypassed the detected startup update.' }
             $updateGui.Kill(); [void]$updateGui.WaitForExit(5000)
             Write-Host 'PASS: a newer release keeps the GUI open instead of auto-launching Chrome.'
         }
         finally { $launcher = $releaseLauncher }
+    }
+    if ($WithForeignBrowser)
+    {
+        if ($foreignBrowser.HasExited) { throw 'The unrelated chrome.exe did not survive the full GUI flow.' }
+        Write-Host 'PASS: unrelated chrome.exe remains alive through launch, reuse, normal/forced restart and test cleanup.'
     }
 }
 finally
@@ -389,6 +419,11 @@ finally
         finally { $gui.Dispose() }
     }
     Stop-TestBrowsers
+    if ($null -ne $foreignBrowser)
+    {
+        try { if (-not $foreignBrowser.HasExited) { $foreignBrowser.Kill($true); [void]$foreignBrowser.WaitForExit(5000) } }
+        finally { $foreignBrowser.Dispose() }
+    }
     if ($hadLanguage) { [System.IO.File]::WriteAllBytes($languagePath, $languageBackup) }
     else { Remove-Item -LiteralPath $languagePath -Force -ErrorAction SilentlyContinue }
     $resolvedRoot = [System.IO.Path]::GetFullPath($testRoot)

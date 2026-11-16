@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -16,17 +15,17 @@ internal sealed record ChromeSessionInspection(ChromeSessionState State, int? Pr
 
 internal static class RunningChromeSession
 {
-    internal static ChromeSessionInspection Inspect(IReadOnlyList<string> arguments)
+    internal static ChromeSessionInspection Inspect(ChromeInstallation installation, IReadOnlyList<string> arguments)
     {
-        var processes = Process.GetProcessesByName("chrome");
+        using var scope = ChromeProcessScope.Capture(installation.ExecutablePath);
+        var processes = scope.Processes;
         try
         {
-            if (processes.Length == 0) return new(ChromeSessionState.NoChrome);
+            if (scope.IsClear) return new(ChromeSessionState.NoChrome);
+            if (scope.UnidentifiedCount != 0) return new(ChromeSessionState.Unknown);
             if (!IsBrowserRoot(arguments) || UserDataDirectory(arguments) is not { } directory)
                 return new(ChromeSessionState.Unknown);
-            var executable = ChromeInstallationFinder.Find().ExecutablePath;
-            using var currentProcess = Process.GetCurrentProcess();
-            using var currentIdentity = WindowsIdentity.GetCurrent();
+            var executable = installation.ExecutablePath;
             ChromeSessionInspection? result = null;
             var children = new List<Process>();
             foreach (var process in processes)
@@ -50,19 +49,11 @@ internal static class RunningChromeSession
                     if (!IsBrowserRoot(runningArguments)) { children.Add(process); continue; }
                     var path = new StringBuilder(32768);
                     var size = (uint)path.Capacity;
-                    if (result is not null || process.SessionId != currentProcess.SessionId ||
+                    if (result is not null || !IsCurrentUserSession(process, handle) ||
                         !NativeMethods.QueryFullProcessImageNameW(handle, 0, path, ref size) ||
                         !Path.GetFullPath(path.ToString()).Equals(Path.GetFullPath(executable), StringComparison.OrdinalIgnoreCase) ||
                         !directory.Equals(UserDataDirectory(runningArguments), StringComparison.OrdinalIgnoreCase))
                         return new(ChromeSessionState.Unknown);
-                    if (!NativeMethods.OpenProcessToken(handle, 0x0008, out var token)) return new(ChromeSessionState.Unknown);
-                    try
-                    {
-                        using var identity = new WindowsIdentity(token);
-                        if (identity.User is null || currentIdentity.User is null || identity.User != currentIdentity.User)
-                            return new(ChromeSessionState.Unknown);
-                    }
-                    finally { _ = NativeMethods.CloseHandle(token); }
                     var module = process.Modules.Cast<ProcessModule>().FirstOrDefault(item =>
                         item.ModuleName.Equals("chrome.dll", StringComparison.OrdinalIgnoreCase));
                     if (module is null) return new(ChromeSessionState.Unknown);
@@ -81,43 +72,28 @@ internal static class RunningChromeSession
                 finally { _ = NativeMethods.CloseHandle(handle); }
             }
             if (result?.ProcessId is not { } rootId) return new(ChromeSessionState.Unknown);
-            var parents = ReadProcessParents();
+            var parents = ChromeProcessScope.ReadProcessParents();
             foreach (var child in children)
             {
                 if (!child.HasExited && (child.StartTime.ToUniversalTime().Ticks < result.StartTimeUtcTicks ||
-                    !IsDescendant(child.Id, rootId, parents))) return new(ChromeSessionState.Unknown);
+                    !ChromeProcessScope.IsDescendant(child.Id, rootId, parents))) return new(ChromeSessionState.Unknown);
             }
             return result;
         }
-        catch (Exception error) when (IsInspectionFailure(error)) { return new(ChromeSessionState.Unknown); }
-        finally { foreach (var process in processes) process.Dispose(); }
+        catch (Exception error) when (ChromeProcessScope.IsInspectionFailure(error)) { return new(ChromeSessionState.Unknown); }
     }
 
-    internal static bool IsDescendant(int processId, int rootId, IReadOnlyDictionary<int, int> parents)
+    private static bool IsCurrentUserSession(Process process, IntPtr handle)
     {
-        var visited = new HashSet<int>();
-        while (processId != rootId)
-        {
-            if (!visited.Add(processId) || !parents.TryGetValue(processId, out processId)) return false;
-        }
-        return true;
-    }
-
-    private static Dictionary<int, int> ReadProcessParents()
-    {
-        var snapshot = NativeMethods.CreateToolhelp32Snapshot(0x00000002, 0);
-        if (snapshot == IntPtr.Zero || snapshot == new IntPtr(-1)) throw NativeMethods.Error("Could not inspect process ancestry");
+        using var currentProcess = Process.GetCurrentProcess();
+        if (process.SessionId != currentProcess.SessionId || !NativeMethods.OpenProcessToken(handle, 0x0008, out var token)) return false;
         try
         {
-            var entry = new NativeMethods.ProcessEntry32 { Size = (uint)Marshal.SizeOf<NativeMethods.ProcessEntry32>(), Executable = "" };
-            if (!NativeMethods.Process32FirstW(snapshot, ref entry)) throw NativeMethods.Error("Could not read process ancestry");
-            var parents = new Dictionary<int, int>();
-            do { parents[(int)entry.ProcessId] = (int)entry.ParentProcessId; }
-            while (NativeMethods.Process32NextW(snapshot, ref entry));
-            if (Marshal.GetLastWin32Error() != 18) throw NativeMethods.Error("Incomplete process ancestry snapshot");
-            return parents;
+            using var currentIdentity = WindowsIdentity.GetCurrent();
+            using var identity = new WindowsIdentity(token);
+            return identity.User is not null && currentIdentity.User is not null && identity.User == currentIdentity.User;
         }
-        finally { _ = NativeMethods.CloseHandle(snapshot); }
+        finally { _ = NativeMethods.CloseHandle(token); }
     }
 
     internal static ChromeSessionState ClassifyPatchSet(PatchTarget target, Func<int, byte?> readByte)
@@ -144,10 +120,10 @@ internal static class RunningChromeSession
             value, 1, out var count) && count == 1 ? value[0] : null;
     }
 
-    internal static bool CloseUnpatchedSession(IReadOnlyList<string> arguments, bool forceClose, TimeSpan timeout,
+    internal static bool CloseUnpatchedSession(ChromeInstallation installation, IReadOnlyList<string> arguments, bool forceClose, TimeSpan timeout,
         ChromeSessionInspection expectedSession)
     {
-        var session = Inspect(arguments);
+        var session = Inspect(installation, arguments);
         if (!session.CanRestart || !expectedSession.CanRestart ||
             session.ProcessId != expectedSession.ProcessId || session.StartTimeUtcTicks != expectedSession.StartTimeUtcTicks)
             return false;
@@ -156,11 +132,11 @@ internal static class RunningChromeSession
         if (anchor == IntPtr.Zero) return false;
         try
         {
-            var freshReport = AnalysisService.Analyze(ChromeInstallationFinder.Find());
+            var freshReport = AnalysisService.Analyze(ChromeInstallationFinder.Find(installation.ExecutablePath));
             if (!freshReport.Success || freshReport.Target is not { State: PatchState.Original }) return false;
             using var process = Process.GetProcessById(session.ProcessId.Value);
             if (process.HasExited || process.StartTime.ToUniversalTime().Ticks != session.StartTimeUtcTicks) return false;
-            var recheck = Inspect(arguments);
+            var recheck = Inspect(installation, arguments);
             if (!recheck.CanRestart || recheck.ProcessId != session.ProcessId || recheck.StartTimeUtcTicks != session.StartTimeUtcTicks)
                 return false;
             if (forceClose) process.Kill(entireProcessTree: true);
@@ -179,26 +155,26 @@ internal static class RunningChromeSession
             var timer = Stopwatch.StartNew();
             while (timer.Elapsed < timeout)
             {
-                var remaining = Process.GetProcessesByName("chrome");
-                try { if (remaining.Length == 0) return true; }
-                finally { foreach (var item in remaining) item.Dispose(); }
+                using var remaining = ChromeProcessScope.Capture(installation.ExecutablePath);
+                if (remaining.IsClear) return true;
                 Thread.Sleep(100);
             }
             return false;
         }
-        catch (Exception error) when (IsInspectionFailure(error)) { return false; }
+        catch (Exception error) when (ChromeProcessScope.IsInspectionFailure(error)) { return false; }
         finally { _ = NativeMethods.CloseHandle(anchor); }
     }
 
     // Read-only inspection: never repair or patch an arbitrary running Chrome process.
-    internal static bool TryOpenPatchedWindow(IReadOnlyList<string> arguments)
+    internal static bool TryOpenPatchedWindow(ChromeInstallation installation, IReadOnlyList<string> arguments)
     {
         if (!IsBrowserRoot(arguments)) return false;
-        var processes = Process.GetProcessesByName("chrome");
+        using var scope = ChromeProcessScope.Capture(installation.ExecutablePath);
+        var processes = scope.Processes;
         try
         {
-            if (processes.Length == 0) return false;
-            var executable = ChromeInstallationFinder.Find().ExecutablePath;
+            if (scope.IsClear || scope.UnidentifiedCount != 0) return false;
+            var executable = installation.ExecutablePath;
             var requestedDirectory = UserDataDirectory(arguments);
             if (requestedDirectory is null) return false;
             foreach (var process in processes)
@@ -207,13 +183,9 @@ internal static class RunningChromeSession
             }
             return false;
         }
-        catch (Exception error) when (IsInspectionFailure(error))
+        catch (Exception error) when (ChromeProcessScope.IsInspectionFailure(error))
         {
             return false;
-        }
-        finally
-        {
-            foreach (var process in processes) process.Dispose();
         }
     }
 
@@ -227,7 +199,7 @@ internal static class RunningChromeSession
         {
             var path = new StringBuilder(32768);
             var size = (uint)path.Capacity;
-            if (!NativeMethods.QueryFullProcessImageNameW(handle, 0, path, ref size) ||
+            if (!IsCurrentUserSession(process, handle) || !NativeMethods.QueryFullProcessImageNameW(handle, 0, path, ref size) ||
                 !Path.GetFullPath(path.ToString()).Equals(Path.GetFullPath(executable), StringComparison.OrdinalIgnoreCase))
                 return false;
             var commandLine = ReadCommandLine(handle);
@@ -270,7 +242,7 @@ internal static class RunningChromeSession
             }
             return activation.ExitCode == 0 && !process.HasExited && IsPatchSetApplied(target, ReadByte);
         }
-        catch (Exception error) when (IsInspectionFailure(error))
+        catch (Exception error) when (ChromeProcessScope.IsInspectionFailure(error))
         {
             return false;
         }
@@ -345,7 +317,4 @@ internal static class RunningChromeSession
         finally { Marshal.FreeHGlobal(buffer); }
     }
 
-    private static bool IsInspectionFailure(Exception error) => error is
-        Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException or
-        ArgumentException or NotSupportedException or EntryPointNotFoundException or OverflowException;
 }

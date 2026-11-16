@@ -100,7 +100,7 @@ internal static class UiFunctionalTestService
 
             ChromeDevTools.TriggerLoadUnpacked(extensionsPage.WebSocketDebuggerUrl);
             livePatchByte = ChromeDebugLauncher.ReadRemoteByte(launch.ProcessId, launch.RemoteAddressValue);
-            patchedChromeProcessIds = ChromeDebugLauncher.PatchExistingChromeProcesses(target);
+            patchedChromeProcessIds = ChromeDebugLauncher.PatchExistingChromeProcesses(target, browser, launch.ModulePath);
             var dialog = WindowsFolderDialog.WaitForDialog(launch.ProcessId, TimeSpan.FromSeconds(8));
             if (dialog == IntPtr.Zero)
             {
@@ -244,6 +244,7 @@ internal static class UiFunctionalTestService
 
     private static void StopBrowserForRestart(Process browser)
     {
+        using var owned = ChromeProcessScope.CaptureOwnedTree(browser);
         if (!browser.HasExited)
         {
             _ = browser.CloseMainWindow();
@@ -254,11 +255,11 @@ internal static class UiFunctionalTestService
             }
         }
 
-        // The test starts only after verifying that no user Chrome instance is
-        // running, so any surviving Chrome helper belongs to this isolated profile.
+        // Retain only the tree captured before closing our root. Another browser
+        // or a concurrently started user session must never be cleanup targets.
         for (var attempt = 0; attempt < 20; attempt++)
         {
-            var helpers = Process.GetProcessesByName("chrome");
+            var helpers = owned.Processes.Where(p => !p.HasExited).ToArray();
             if (helpers.Length == 0)
             {
                 break;
@@ -277,10 +278,6 @@ internal static class UiFunctionalTestService
                 catch (InvalidOperationException)
                 {
                     // The helper exited during cleanup.
-                }
-                finally
-                {
-                    helper.Dispose();
                 }
             }
 

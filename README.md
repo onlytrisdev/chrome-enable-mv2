@@ -4,7 +4,9 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-Version `3.13.0` replaces the automatic engine's startup byte-pattern dependency with bounded CFG/data-flow validation. It correlates the selected-extension collection, forward loop-entry guard, reason container, registrar/extension-ID helpers and cleanup, leaving the backward iterator branch untouched. The same engine is tested on Chrome x64 `156.0.8078.12` and `158.0.8127.18`. **Automatic local offset discovery and a verified analysis cache** require no offset downloads or REA/Python on user machines. Legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
+**Version `3.14.0` fixes [issue #15](https://github.com/onlytrisdev/chrome-enable-mv2/issues/15): Chrome launch blocked while Helium is running.** The launcher now identifies the selected browser by its executable path, not just the name `chrome.exe`. Verified unrelated browsers no longer block the GUI or launch/restart checks. Processes whose identity cannot be read remain blockers. See [browser process isolation and test evidence](docs/browser-process-scope.md).
+
+Version `3.13.0` introduced bounded CFG/data-flow validation instead of startup byte-pattern matching. It correlates the selected-extension collection, forward loop-entry guard, reason container, registrar/extension-ID helpers and cleanup, leaving the backward iterator branch untouched. **Automatic local offset discovery and a verified analysis cache** require no offset downloads or REA/Python on user machines. Legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
 
 ### Automatic discovery and cache
 

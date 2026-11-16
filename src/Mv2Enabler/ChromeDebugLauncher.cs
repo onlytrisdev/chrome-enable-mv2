@@ -14,7 +14,7 @@ internal static class ChromeDebugLauncher
         IReadOnlyList<string> chromeArguments,
         TimeSpan timeout)
     {
-        EnsureChromeIsNotRunning();
+        EnsureChromeIsNotRunning(installation);
         // Pin and re-identify the DLL across process creation/load. A GUI report
         // can be old by the time the user presses Launch; cache metadata is not
         // authority to apply offsets to a replacement binary at the same path.
@@ -221,78 +221,72 @@ internal static class ChromeDebugLauncher
         }
     }
 
-    public static IReadOnlyList<int> PatchExistingChromeProcesses(PatchTarget target)
+    public static IReadOnlyList<int> PatchExistingChromeProcesses(PatchTarget target, Process ownedBrowser, string modulePath)
     {
         var patched = new List<int>();
-        foreach (var process in Process.GetProcessesByName("chrome"))
+        using var owned = ChromeProcessScope.CaptureOwnedTree(ownedBrowser);
+        foreach (var process in owned.Processes)
         {
+            ProcessModule? module = null;
             try
             {
-                ProcessModule? module = null;
-                try
-                {
-                    module = process.Modules.Cast<ProcessModule>().FirstOrDefault(item =>
-                        string.Equals(item.ModuleName, "chrome.dll", StringComparison.OrdinalIgnoreCase));
-                }
-                catch (System.ComponentModel.Win32Exception)
-                {
-                    continue;
-                }
+                module = process.Modules.Cast<ProcessModule>().FirstOrDefault(item =>
+                    string.Equals(item.ModuleName, "chrome.dll", StringComparison.OrdinalIgnoreCase));
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                continue;
+            }
 
-                if (module is null)
-                {
-                    continue;
-                }
+            if (module is null || ChromeProcessScope.ClassifyExecutable(modulePath, module.FileName) != ExecutableMatch.Selected)
+            {
+                continue;
+            }
 
-                var handle = NativeMethods.OpenProcess(
-                    NativeMethods.ProcessVmRead | NativeMethods.ProcessVmWrite | NativeMethods.ProcessVmOperation,
-                    false,
-                    checked((uint)process.Id));
-                if (handle == IntPtr.Zero)
-                {
-                    continue;
-                }
+            var handle = NativeMethods.OpenProcess(
+                NativeMethods.ProcessVmRead | NativeMethods.ProcessVmWrite | NativeMethods.ProcessVmOperation,
+                false,
+                checked((uint)process.Id));
+            if (handle == IntPtr.Zero)
+            {
+                continue;
+            }
 
-                try
+            try
+            {
+                var allPatched = true;
+                foreach (var edit in GetEdits(target))
                 {
-                    var allPatched = true;
-                    foreach (var edit in GetEdits(target))
+                    var address = new IntPtr(checked(module.BaseAddress.ToInt64() + edit.PatchRva));
+                    var current = new byte[1];
+                    if (!NativeMethods.ReadProcessMemory(handle, address, current, 1, out var read) || read != 1)
                     {
-                        var address = new IntPtr(checked(module.BaseAddress.ToInt64() + edit.PatchRva));
-                        var current = new byte[1];
-                        if (!NativeMethods.ReadProcessMemory(handle, address, current, 1, out var read) || read != 1)
-                        {
-                            allPatched = false;
-                            break;
-                        }
-
-                        if (current[0] == edit.ReplacementByte)
-                        {
-                            continue;
-                        }
-
-                        if (current[0] != edit.ExpectedByte)
-                        {
-                            allPatched = false;
-                            break;
-                        }
-
-                        WriteVerifiedByte(handle, address, edit.ExpectedByte, edit.ReplacementByte);
+                        allPatched = false;
+                        break;
                     }
 
-                    if (allPatched)
+                    if (current[0] == edit.ReplacementByte)
                     {
-                        patched.Add(process.Id);
+                        continue;
                     }
+
+                    if (current[0] != edit.ExpectedByte)
+                    {
+                        allPatched = false;
+                        break;
+                    }
+
+                    WriteVerifiedByte(handle, address, edit.ExpectedByte, edit.ReplacementByte);
                 }
-                finally
+
+                if (allPatched)
                 {
-                    _ = NativeMethods.CloseHandle(handle);
+                    patched.Add(process.Id);
                 }
             }
             finally
             {
-                process.Dispose();
+                _ = NativeMethods.CloseHandle(handle);
             }
         }
 
@@ -341,25 +335,15 @@ internal static class ChromeDebugLauncher
         }
     }
 
-    internal static void EnsureChromeIsNotRunning()
+    internal static void EnsureChromeIsNotRunning(ChromeInstallation installation)
     {
-        var running = Process.GetProcessesByName("chrome");
-        try
-        {
-            if (running.Length > 0)
-            {
-                var ids = string.Join(", ", running.Select(process => process.Id));
-                throw new InvalidOperationException(
-                    $"Chrome is already running (PID: {ids}). Close every Chrome process so a new patched browser process is guaranteed.");
-            }
-        }
-        finally
-        {
-            foreach (var process in running)
-            {
-                process.Dispose();
-            }
-        }
+        using var running = ChromeProcessScope.Capture(installation.ExecutablePath);
+        if (running.IsClear) return;
+        if (running.UnidentifiedCount != 0)
+            throw new InvalidOperationException("Cannot identify every browser process. No process will be patched or closed without verified identity.");
+        var ids = string.Join(", ", running.Processes.Select(process => process.Id));
+        throw new InvalidOperationException(
+            $"Chrome is already running (PID: {ids}). Close every process of the selected Chrome installation so a new patched browser process is guaranteed.");
     }
 
     private static string BuildCommandLine(string executablePath, IReadOnlyList<string> arguments)

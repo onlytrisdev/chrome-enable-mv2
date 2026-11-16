@@ -58,9 +58,12 @@ public sealed class AutomaticDiscoveryIntegrationTests
     [Trait("Category", "Integration")]
     public void AutomaticPlanEqualsVerifiedLegacyAndSurvivesResourceRenumbering()
     {
-        var installation = ChromeInstallationFinder.Find(); var image = PeImage.Load(installation.DllPath);
+        var installation = ChromeInstallationFinder.Find(Environment.GetEnvironmentVariable("MV2_TEST_LEGACY_CHROME"));
+        var image = PeImage.Load(installation.DllPath);
         var anchor = Assert.IsType<ChromeResourceAnchor>(ChromeResourceAnchor.Load(installation.DllPath));
         var legacy = Mv2GateLocator.Locate(image); var automatic = AutomaticGateLocator.Locate(image, anchor);
+        Assert.True(legacy.Success, "The legacy comparison requires a known legacy-supported Chrome fixture. " +
+            "Set MV2_TEST_LEGACY_CHROME to its executable.\n" + string.Join("\n", legacy.Diagnostics));
         Assert.True(automatic.Success, string.Join("\n", automatic.Diagnostics));
         Assert.Equal(AutomaticGateLocator.Rule, automatic.Target!.RuleId);
         Assert.Equal(ChromeDebugLauncher.GetEdits(legacy.Target!), ChromeDebugLauncher.GetEdits(automatic.Target));

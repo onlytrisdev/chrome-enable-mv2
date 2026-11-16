@@ -74,15 +74,9 @@ internal static class WindowsFolderDialog
     private static IntPtr FindDialog(uint processId)
     {
         var result = IntPtr.Zero;
-        var chromeProcessIds = System.Diagnostics.Process.GetProcessesByName("chrome")
-            .Select(process =>
-            {
-                var id = process.Id;
-                process.Dispose();
-                return checked((uint)id);
-            })
-            .Append(processId)
-            .ToHashSet();
+        using var browser = System.Diagnostics.Process.GetProcessById(checked((int)processId));
+        using var owned = ChromeProcessScope.CaptureOwnedTree(browser);
+        var chromeProcessIds = owned.Processes.Select(process => checked((uint)process.Id)).ToHashSet();
         NativeMethods.EnumWindows((window, parameter) =>
         {
             _ = NativeMethods.GetWindowThreadProcessId(window, out var ownerProcessId);

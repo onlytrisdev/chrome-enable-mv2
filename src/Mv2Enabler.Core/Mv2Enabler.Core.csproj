@@ -20,6 +20,8 @@
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\..\docs\automatic-offsets.md" Link="docs\automatic-offsets.md"
           CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\docs\browser-process-scope.md" Link="docs\browser-process-scope.md"
+          CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="Iced" Version="1.21.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
     <InternalsVisibleTo Include="mv2ctl" />

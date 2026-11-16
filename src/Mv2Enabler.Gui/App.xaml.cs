@@ -1,4 +1,4 @@
-﻿using Windows.ApplicationModel;
+using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
@@ -47,7 +47,11 @@ public partial class App : Application
         StartupUpdate = await Mv2Enabler.StartupUpdateCheck.RunAsync(
             typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0, 0));
         if (!StartupUpdate.RequiresGui && !options.ShowUi &&
-            await Task.Run(() => Mv2Enabler.RunningChromeSession.TryOpenPatchedWindow(ChromeArguments)))
+            await Task.Run(() =>
+            {
+                try { return Mv2Enabler.RunningChromeSession.TryOpenPatchedWindow(Mv2Enabler.ChromeInstallationFinder.Find(), ChromeArguments); }
+                catch (Exception error) when (Mv2Enabler.ChromeProcessScope.IsInspectionFailure(error)) { return false; }
+            }))
         {
             Exit();
             return;

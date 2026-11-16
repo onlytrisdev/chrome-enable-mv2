@@ -155,6 +155,7 @@ public sealed partial class MainPage : Page
             }
         }
 
+        var selectedInstallation = _installation;
         IReadOnlyList<string> chromeArguments = OpenExtensionsCheckBox.IsChecked == true
             ? [.. App.ChromeArguments, "chrome://extensions/"]
             : App.ChromeArguments;
@@ -164,7 +165,7 @@ public sealed partial class MainPage : Page
         var launched = false;
         try
         {
-            var inspection = await Task.Run(() => RunningChromeSession.Inspect(chromeArguments));
+            var inspection = await Task.Run(() => RunningChromeSession.Inspect(selectedInstallation, chromeArguments));
             if (inspection.State != ChromeSessionState.NoChrome)
             {
                 if (RestartUnpatchedCheckBox.IsChecked != true || !inspection.CanRestart)
@@ -198,10 +199,10 @@ public sealed partial class MainPage : Page
                 }
 
                 BusyRing.IsActive = true;
-                var closed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(chromeArguments, forceClose: false, TimeSpan.FromSeconds(8), inspection));
+                var closed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(selectedInstallation, chromeArguments, forceClose: false, TimeSpan.FromSeconds(8), inspection));
                 if (!closed)
                 {
-                    var stillRunning = await Task.Run(() => RunningChromeSession.Inspect(chromeArguments));
+                    var stillRunning = await Task.Run(() => RunningChromeSession.Inspect(selectedInstallation, chromeArguments));
                     if (!stillRunning.CanRestart || stillRunning.ProcessId != inspection.ProcessId ||
                         stillRunning.StartTimeUtcTicks != inspection.StartTimeUtcTicks)
                     {
@@ -228,7 +229,7 @@ public sealed partial class MainPage : Page
                     }
 
                     BusyRing.IsActive = true;
-                    var forceClosed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(chromeArguments, forceClose: true, TimeSpan.FromSeconds(8), inspection));
+                    var forceClosed = await Task.Run(() => RunningChromeSession.CloseUnpatchedSession(selectedInstallation, chromeArguments, forceClose: true, TimeSpan.FromSeconds(8), inspection));
                     if (!forceClosed)
                     {
                         ShowMessage(InfoBarSeverity.Error, T("CannotOpenChrome"), T("CannotRestartRunningChrome"));
@@ -239,10 +240,10 @@ public sealed partial class MainPage : Page
 
             await Task.Run(() =>
             {
-                ChromeDebugLauncher.EnsureChromeIsNotRunning();
+                ChromeDebugLauncher.EnsureChromeIsNotRunning(selectedInstallation);
                 // Chrome may update while a confirmation dialog is open. Do not launch with
                 // a stale installation/RVA snapshot after the existing session has closed.
-                var currentInstallation = ChromeInstallationFinder.Find();
+                var currentInstallation = ChromeInstallationFinder.Find(selectedInstallation.ExecutablePath);
                 var currentReport = AnalysisService.Analyze(currentInstallation);
                 if (!currentReport.Success || currentReport.Target is null)
                     throw new InvalidOperationException(T("UnsupportedChrome"));
@@ -418,27 +419,18 @@ public sealed partial class MainPage : Page
 
     private void UpdateProcessState()
     {
-        var processes = Process.GetProcessesByName("chrome");
-        try
-        {
-            var running = processes.Length > 0;
-            ProcessStatusText.Text = running
-                ? T("ChromeRunning", processes.Length)
-                : T("ChromeClosed");
-            ProcessStatusDot.Background = Brush(running ? Colors.Gold : Colors.LimeGreen);
+        using var processes = _installation is null ? null : ChromeProcessScope.Capture(_installation.ExecutablePath);
+        var count = processes?.Count ?? 0;
+        var running = count > 0;
+        ProcessStatusText.Text = running
+            ? T("ChromeRunning", count)
+            : T("ChromeClosed");
+        ProcessStatusDot.Background = Brush(running ? Colors.Gold : Colors.LimeGreen);
 
-            var canLaunchRunning = running && (RestartUnpatchedCheckBox.IsChecked == true);
-            var isSafeAnalysis = _analysis?.Success == true && _analysis.Target is not null;
-            LaunchButton.IsEnabled = !_busy && !_installingUpdate && (!running || canLaunchRunning) && isSafeAnalysis;
-            RestartUnpatchedCheckBox.IsEnabled = !_busy && !_installingUpdate;
-        }
-        finally
-        {
-            foreach (var process in processes)
-            {
-                process.Dispose();
-            }
-        }
+        var canLaunchRunning = running && (RestartUnpatchedCheckBox.IsChecked == true);
+        var isSafeAnalysis = _analysis?.Success == true && _analysis.Target is not null;
+        LaunchButton.IsEnabled = !_busy && !_installingUpdate && (!running || canLaunchRunning) && isSafeAnalysis;
+        RestartUnpatchedCheckBox.IsEnabled = !_busy && !_installingUpdate;
     }
 
     private void SetBusy(bool busy)

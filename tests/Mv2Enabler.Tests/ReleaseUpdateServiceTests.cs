@@ -100,7 +100,7 @@ public sealed class ReleaseUpdateServiceTests
     {
         var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
         var version = typeof(ReleaseUpdateService).Assembly.GetName().Version!;
-        var archivePath = Path.Combine(projectRoot, "artifacts", "release",
+        var archivePath = Environment.GetEnvironmentVariable("MV2_TEST_GUI_ARCHIVE") ?? Path.Combine(projectRoot, "artifacts", "release",
             $"ChromeMv2Launcher-v{version.Major}.{version.Minor}.{version.Build}-win-x64.zip");
         if (!File.Exists(archivePath))
         {

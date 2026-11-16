@@ -89,7 +89,7 @@ internal static class Program
             return 2;
         }
 
-        ChromeDebugLauncher.EnsureChromeIsNotRunning();
+        ChromeDebugLauncher.EnsureChromeIsNotRunning(installation);
         var profileRepair = ChromeProfileRepair.RepairBeforeLaunch(installation, chromeArguments);
         var result = ChromeDebugLauncher.Launch(
             installation,
