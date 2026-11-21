@@ -31,6 +31,53 @@ internal sealed class StartupLoopLocator
     private static bool RegMove(Instruction i) => i.Mnemonic == Mnemonic.Mov && i.Op0Kind == OpKind.Register;
     private static bool Nonvolatile(Register r) => !Volatile.Contains(Full(r)) && Full(r) is >= Register.RAX and <= Register.R15 && Full(r) != Register.RSP;
 
+    internal static bool ProveConstantAt(PeImage image, int functionStart, int functionEnd, int target, Register register, long expected)
+    {
+        try
+        {
+            var cfg = new StartupLoopLocator(image, new(functionStart, functionEnd, functionStart, functionStart, functionStart, Register.None, 0, 0));
+            if (!cfg.code.ContainsKey(target)) return false;
+            var targetReg = Full(register);
+            var states = new Dictionary<int, bool> { [functionStart] = false };
+            var pending = new Queue<int>();
+            pending.Enqueue(functionStart);
+            var updates = 0;
+            while (pending.TryDequeue(out var p) && updates++ < 65536)
+            {
+                var before = states[p];
+                var i = cfg.code[p];
+                bool after;
+                if (i.Mnemonic == Mnemonic.Mov && i.Op0Kind == OpKind.Register &&
+                    Full(i.Op0Register) == targetReg && i.Op0Register.GetSize() is 4 or 8 &&
+                    Immediate(i, 1, expected))
+                    after = true;
+                else if (cfg.writes[p].Contains(targetReg))
+                    after = false;
+                else
+                    after = before;
+
+                foreach (var next in cfg.edges[p])
+                {
+                    if (!states.TryGetValue(next, out var prior))
+                    {
+                        states[next] = after;
+                        pending.Enqueue(next);
+                    }
+                    else if (prior && !after)
+                    {
+                        states[next] = false;
+                        pending.Enqueue(next);
+                    }
+                }
+            }
+            return updates < 65536 && states.TryGetValue(target, out var proven) && proven;
+        }
+        catch (Exception error) when (error is InvalidDataException or ArgumentException or OverflowException)
+        {
+            return false;
+        }
+    }
+
     internal StartupLoopLocator(PeImage image, Context context)
     {
         this.image = image; this.context = context;

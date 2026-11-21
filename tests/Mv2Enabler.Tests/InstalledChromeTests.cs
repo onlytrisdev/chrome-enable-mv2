@@ -18,29 +18,48 @@ public sealed class InstalledChromeTests
                                  or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v7"
                                  or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v8"
                                  or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v9"
-                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v10" or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v11" or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v12"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v10"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v11"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v12"
+                                 or "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v13"
                                  or AutomaticGateLocator.Rule,
             $"Unexpected rule ID: {report.Target.RuleId}");
-        Assert.Equal(0x7f, report.Target.ExpectedByte);
-        Assert.Equal(0xeb, report.Target.ReplacementByte);
-        Assert.Equal(8, report.Target.AdditionalEdits.Count);
-        Assert.Equal(0x7f, report.Target.AdditionalEdits[0].ExpectedByte);
-        Assert.Equal(0xeb, report.Target.AdditionalEdits[0].ReplacementByte);
-        Assert.Equal(0x7f, report.Target.AdditionalEdits[1].ExpectedByte);
-        Assert.Equal(0xeb, report.Target.AdditionalEdits[1].ReplacementByte);
-        Assert.Equal(0x0f, report.Target.AdditionalEdits[2].ExpectedByte);
-        Assert.Equal(0x90, report.Target.AdditionalEdits[2].ReplacementByte);
-        Assert.Equal(0x8f, report.Target.AdditionalEdits[3].ExpectedByte);
-        Assert.Equal(0xe9, report.Target.AdditionalEdits[3].ReplacementByte);
-        Assert.Equal(0x7f, report.Target.AdditionalEdits[4].ExpectedByte);
-        Assert.Equal(0xeb, report.Target.AdditionalEdits[4].ReplacementByte);
-        Assert.Equal(0x7f, report.Target.AdditionalEdits[5].ExpectedByte);
-        Assert.Equal(0xeb, report.Target.AdditionalEdits[5].ReplacementByte);
-        Assert.All(report.Target.AdditionalEdits.Skip(6), edit => Assert.Equal(0x00, edit.ReplacementByte));
+        var isInvertedJle = report.Target.ReplacementByte == 0x00;
+        if (isInvertedJle)
+        {
+            Assert.Equal(0x03, report.Target.ExpectedByte);
+            Assert.Equal(0x00, report.Target.ReplacementByte);
+            Assert.True(report.Target.AdditionalEdits.Count >= 6);
+            Assert.Equal(0x03, report.Target.AdditionalEdits[0].ExpectedByte);
+            Assert.Equal(0x00, report.Target.AdditionalEdits[0].ReplacementByte);
+            Assert.Equal(0x7f, report.Target.AdditionalEdits[1].ExpectedByte);
+            Assert.Equal(0xeb, report.Target.AdditionalEdits[1].ReplacementByte);
+            Assert.All(report.Target.AdditionalEdits.Skip(2), edit => Assert.Equal(0x00, edit.ReplacementByte));
+        }
+        else
+        {
+            Assert.Equal(0x7f, report.Target.ExpectedByte);
+            Assert.Equal(0xeb, report.Target.ReplacementByte);
+            Assert.Equal(8, report.Target.AdditionalEdits.Count);
+            Assert.Equal(0x7f, report.Target.AdditionalEdits[0].ExpectedByte);
+            Assert.Equal(0xeb, report.Target.AdditionalEdits[0].ReplacementByte);
+            Assert.Equal(0x7f, report.Target.AdditionalEdits[1].ExpectedByte);
+            Assert.Equal(0xeb, report.Target.AdditionalEdits[1].ReplacementByte);
+            Assert.Equal(0x0f, report.Target.AdditionalEdits[2].ExpectedByte);
+            Assert.Equal(0x90, report.Target.AdditionalEdits[2].ReplacementByte);
+            Assert.Equal(0x8f, report.Target.AdditionalEdits[3].ExpectedByte);
+            Assert.Equal(0xe9, report.Target.AdditionalEdits[3].ReplacementByte);
+            Assert.Equal(0x7f, report.Target.AdditionalEdits[4].ExpectedByte);
+            Assert.Equal(0xeb, report.Target.AdditionalEdits[4].ReplacementByte);
+            Assert.Equal(0x7f, report.Target.AdditionalEdits[5].ExpectedByte);
+            Assert.Equal(0xeb, report.Target.AdditionalEdits[5].ReplacementByte);
+            Assert.All(report.Target.AdditionalEdits.Skip(6), edit => Assert.Equal(0x00, edit.ReplacementByte));
+        }
         Assert.Equal(PatchState.Original, report.Target.State);
 
         var leads = SemanticCandidateProbe.Find(PeImage.Load(installation.DllPath));
-        Assert.Contains(leads, candidate => candidate.Rva == report.Target.PatchRva - 4);
+        var expectedCompareRva = report.Target.PatchRva - (isInvertedJle ? 5 : 4);
+        Assert.Contains(leads, candidate => candidate.Rva == expectedCompareRva);
         Assert.True(leads.Count >= 2, "The read-only probe missed the MV2 checker family.");
     }
 }

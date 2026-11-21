@@ -34,15 +34,20 @@ internal static class SemanticCandidateProbe
             }
 
             var body = text.Slice(position, 128);
-            if (!Contains(body, [0x83, 0xF9, 0x01]) ||
-                !Contains(body, [0x83, 0xF8, 0x05]) ||
-                !Contains(body, [0x83, 0xF8, 0x0A]))
+            var legacyBody = Contains(body, [0x83, 0xF9, 0x01]) &&
+                             Contains(body, [0x83, 0xF8, 0x05]) &&
+                             Contains(body, [0x83, 0xF8, 0x0A]);
+            var bitsetBody = Contains(body, [0x0A, 0x01, 0x00, 0x00]) &&
+                             Contains(body, [0x0F, 0xA3]) &&
+                             ((Contains(body, [0x83, 0xF9, 0x05]) && Contains(body, [0x83, 0xF9, 0x0A])) ||
+                              (Contains(body, [0x83, 0xF8, 0x05]) && Contains(body, [0x83, 0xF8, 0x0A])));
+            if (!legacyBody && !bitsetBody)
             {
                 continue;
             }
 
-            var kind = Contains(body, [0x0F, 0x95, 0xC1]) &&
-                       Contains(body, [0x0F, 0x95, 0xC0])
+            var kind = ((Contains(body, [0x0F, 0x95, 0xC1]) || Contains(body, [0x0F, 0x95, 0xC2])) &&
+                        Contains(body, [0x0F, 0x95, 0xC0]))
                 ? "possible impact checker"
                 : Contains(body, [0x0F, 0x8F])
                     ? "possible disable clone"

@@ -4,7 +4,9 @@
 
 Khi Chrome từng lưu lý do vô hiệu hóa MV2 (`8388608`) trong profile, lệnh `launch` sẽ tự gỡ đúng lý do đó trước khi mở trình duyệt, giữ nguyên mọi lý do vô hiệu hóa khác, rồi ký lại `Secure Preferences` bằng cơ chế MAC tương thích với Chrome. Một bản sao lưu một lần được tạo tại `Secure Preferences.mv2ctl.bak`.
 
-**Phiên bản `3.14.0` sửa [issue #15](https://github.com/onlytrisdev/chrome-enable-mv2/issues/15): không mở được Chrome khi Helium đang chạy.** Launcher nhận diện trình duyệt được chọn theo đường dẫn executable, thay vì chỉ tên `chrome.exe`. Trình duyệt khác đã xác minh danh tính không còn chặn GUI hoặc các bước launch/restart. Tiến trình không đọc được danh tính vẫn bị xem là chưa an toàn để thao tác. Xem [cách cô lập tiến trình và bằng chứng test](docs/browser-process-scope.md).
+**Phiên bản `3.15.0` bổ sung hỗ trợ đầy đủ cho Google Chrome `159.0.8154.13`.** Engine tự tìm offset ngữ nghĩa cục bộ và rule dự phòng `v13` nay hỗ trợ nhánh đảo `JLE`, kiểm tra loại extension bằng bitset (`0x10A` + `BT`) bao gồm mask hoisted đã kiểm chứng CFG/data-flow, và resource báo lỗi `6905`, đồng thời giữ tương thích ngược cho Chrome 151 đến Chrome 158.
+
+Phiên bản `3.14.0` sửa [issue #15](https://github.com/onlytrisdev/chrome-enable-mv2/issues/15): không mở được Chrome khi Helium đang chạy. Launcher nhận diện trình duyệt được chọn theo đường dẫn executable, thay vì chỉ tên `chrome.exe`. Trình duyệt khác đã xác minh danh tính không còn chặn GUI hoặc các bước launch/restart. Tiến trình không đọc được danh tính vẫn bị xem là chưa an toàn để thao tác. Xem [cách cô lập tiến trình và bằng chứng test](docs/browser-process-scope.md).
 
 Phiên bản `3.13.0` thay bước tìm startup theo byte-pattern bằng kiểm chứng CFG/data-flow có giới hạn. Engine liên kết collection extension được chọn, nhánh vào vòng lặp, bộ chứa lý do disable, helper registrar/extension-ID và cleanup; giữ nguyên nhánh quay lại vòng lặp. Cơ chế **tự tìm offset và cache đã xác minh** không cần REA/Python hoặc tải danh sách offset trên máy user. Các rule cũ vẫn là phương án dự phòng cho layout đã hỗ trợ; luồng lệnh chưa hiểu sẽ bị từ chối, không hứa mọi Chrome tương lai đều tương thích.
 

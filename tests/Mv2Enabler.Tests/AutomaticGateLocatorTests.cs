@@ -10,8 +10,10 @@ public sealed class AutomaticGateLocatorTests
     [InlineData("157.0.1.2", false, true)]
     [InlineData("157.0.1.2", true, false)]
     [InlineData("158.0.1.2", false, true)]
-    [InlineData("159.0.1.2", false, false)]
     [InlineData("158.0.1.2", true, false)]
+    [InlineData("159.0.1.2", false, true)]
+    [InlineData("159.0.1.2", true, false)]
+    [InlineData("160.0.1.2", false, false)]
     [InlineData("unknown", false, false)]
     public void AutomaticSemanticRejectionIsNotBypassedByLegacyRules(string version, bool resources, bool allowed) =>
         Assert.Equal(allowed, AnalysisService.CanUseLegacyFallback(version, resources));
@@ -109,5 +111,27 @@ public sealed class AutomaticGateLocatorTests
         Assert.True(new AutomaticGateLocator(SemanticFixtures.Image(code)).ValidateChecker(0x403, true));
         code[11] = 0x90;
         Assert.False(new AutomaticGateLocator(SemanticFixtures.Image(code)).ValidateChecker(0x403, true));
+    }
+
+    [Fact]
+    public void DiscoversInvertedJleBitsetObjectCheckerAndRejectsBadMaskOrBound()
+    {
+        // Chrome 159 pure object checker shape: cmp [rdx+0x50], 2; jle +3; xor eax, eax; ret; ... bitset 0x10a
+        var hex =
+            "CC" +
+            "837A50027E0331C0C3" +
+            "488B82280200008B485080BA08020000007519" +
+            "8B908800000031C083FA0877DF41B80A010000410FA3D073D3" +
+            "83F9050F95C283F90A0F95C020D0EBC3";
+        var code = Convert.FromHexString(hex);
+        Assert.True(new AutomaticGateLocator(SemanticFixtures.Image(code)).ValidateChecker(0x401, false));
+
+        var badMask = (byte[])code.Clone();
+        badMask[44] ^= 1; // corrupt 0x10a mask
+        Assert.False(new AutomaticGateLocator(SemanticFixtures.Image(badMask)).ValidateChecker(0x401, false));
+
+        var badBound = (byte[])code.Clone();
+        badBound[39] = 9; // corrupt cmp edx, 8 -> cmp edx, 9
+        Assert.False(new AutomaticGateLocator(SemanticFixtures.Image(badBound)).ValidateChecker(0x401, false));
     }
 }

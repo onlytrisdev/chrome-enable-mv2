@@ -4,7 +4,9 @@
 
 If Chrome previously persisted the MV2-only disable reason (`8388608`), `launch` removes only that reason before startup, preserves unrelated disable reasons, and restamps Chrome's protected preferences. It creates a one-time `Secure Preferences.mv2ctl.bak` backup.
 
-**Version `3.14.0` fixes [issue #15](https://github.com/onlytrisdev/chrome-enable-mv2/issues/15): Chrome launch blocked while Helium is running.** The launcher now identifies the selected browser by its executable path, not just the name `chrome.exe`. Verified unrelated browsers no longer block the GUI or launch/restart checks. Processes whose identity cannot be read remain blockers. See [browser process isolation and test evidence](docs/browser-process-scope.md).
+**Version `3.15.0` adds full Chrome `159.0.8154.13` support.** Automatic local semantic discovery and legacy rule `v13` now handle Chrome 159's inverted `JLE` manifest-version gates, bitset (`0x10A` + `BT`) type checks including CFG-proven hoisted loop-invariant masks, and unsupported-manifest resource `6905`, while preserving backward compatibility for Chrome 151 through Chrome 158.
+
+Version `3.14.0` fixes [issue #15](https://github.com/onlytrisdev/chrome-enable-mv2/issues/15): Chrome launch blocked while Helium is running. The launcher now identifies the selected browser by its executable path, not just the name `chrome.exe`. Verified unrelated browsers no longer block the GUI or launch/restart checks. Processes whose identity cannot be read remain blockers. See [browser process isolation and test evidence](docs/browser-process-scope.md).
 
 Version `3.13.0` introduced bounded CFG/data-flow validation instead of startup byte-pattern matching. It correlates the selected-extension collection, forward loop-entry guard, reason container, registrar/extension-ID helpers and cleanup, leaving the backward iterator branch untouched. **Automatic local offset discovery and a verified analysis cache** require no offset downloads or REA/Python on user machines. Legacy rules remain a fallback for older supported layouts. Unknown control flow still fails closed; this is not a promise of support for every future Chrome release.
 
@@ -63,7 +65,7 @@ The self-contained Windows x64 build is at `artifacts\win-x64-self-contained\mv2
 - `mv2ctl probe` lists possible MV2 checker/clone sites using a broader read-only heuristic. Probe results never authorize a patch.
 - Requires the exact rule-specific set of semantic matches; missing or extra candidates abort.
 - Chrome 152 rule v5, Chrome 153 rule v6, Chrome 154 rule v7, and Chrome 155 rule v8 locate both split `Extension&` checker copies, the integer-argument checker, and the compiler-generated install/disable/re-enable clones.
-- Rules v8/v9/v10/v11/v12 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), 8130 (Chrome 157.0.8103.15 / 157.0.8103.39), or 8302 (Chrome 158.0.8127.18), respectively. No arbitrary resource ID is accepted.
+- Rules v8/v9/v10/v11/v12/v13 verify the normal policy call, the relocated unsupported-manifest error path, and their shared callback. They require localized error resource 8129 (Chrome 155), 8121 (Chrome 156 early stable), 8122 (Chrome 156.0.8078.48), 8130 (Chrome 157.0.8103.15 / 157.0.8103.39), 8302 (Chrome 158.0.8127.18 / 158.0.8127.37), or 6905 (Chrome 159.0.8154.13), respectively. No arbitrary resource ID is accepted.
 - Locates and neutralizes the startup branch whose verified target constructs disable reason `0x800000`.
 - Verifies every original byte in the remote process before writing any target.
 - Reads every byte back after writing and flushes the instruction cache.

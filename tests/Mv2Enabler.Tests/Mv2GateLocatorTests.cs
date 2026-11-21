@@ -25,6 +25,49 @@ public sealed class Mv2GateLocatorTests
     }
 
     [Fact]
+    public void ValidatesChrome159InstallPolicyFlowAndRejectsMutations()
+    {
+        var bytes = CreateChrome159InstallFlow();
+        Assert.True(Mv2GateLocator.TryValidateUserMayInstallV13(bytes, Text, Entry, out var evidence, out var reason), reason);
+        Assert.Contains(evidence, item => item.Contains("6905", StringComparison.Ordinal));
+        Assert.False(Mv2GateLocator.TryValidateUserMayInstallV12(bytes, Text, Entry, out _, out _));
+
+        foreach (var mutateOffset in new[] { Entry + 6, Entry + 200 + 78, Entry + 200 + 102, Entry + 45 })
+        {
+            var mutated = (byte[])bytes.Clone();
+            mutated[mutateOffset] ^= 1;
+            Assert.False(Mv2GateLocator.TryValidateUserMayInstallV13(mutated, Text, Entry, out _, out _));
+        }
+    }
+
+    private static byte[] CreateChrome159InstallFlow()
+    {
+        var bytes = new byte[512];
+        var body = Entry + 200;
+        var normalPath = Entry + 10;
+        var sharedCallback = Entry + 45;
+        Copy(bytes, Entry,
+            "83 7F 50 02 0F 8E 00 00 00 00 " +
+            "4C 8D B4 24 50 02 00 00 48 89 D9 48 89 FA 4D 89 F0 E8 00 00 00 00");
+        Copy(bytes, sharedCallback, "41 80 7E 17 00");
+        Copy(bytes, body,
+            "48 8B 8F 28 02 00 00 8B 41 50 80 BF 08 02 00 00 00 75 1D " +
+            "8B 89 88 00 00 00 83 F9 08 0F 87 00 00 00 00 BA 0A 01 00 00 0F A3 CA 0F 83 00 00 00 00 " +
+            "83 F8 05 0F 84 00 00 00 00 83 F8 0A 0F 84 00 00 00 00 " +
+            "4C 8D B4 24 50 02 00 00 4C 89 F1 BA F9 1A 00 00 E8 00 00 00 00 " +
+            "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 00 00 00 00");
+        WriteRelativeTarget(bytes, Entry + 4, 6, body);
+        WriteRelativeTarget(bytes, Entry + 27, 5, Entry + 400);
+        WriteRelativeTarget(bytes, body + 28, 6, normalPath);
+        WriteRelativeTarget(bytes, body + 42, 6, normalPath);
+        WriteRelativeTarget(bytes, body + 51, 6, normalPath);
+        WriteRelativeTarget(bytes, body + 60, 6, normalPath);
+        WriteRelativeTarget(bytes, body + 82, 5, Entry + 410);
+        WriteRelativeTarget(bytes, body + 101, 5, sharedCallback);
+        return bytes;
+    }
+
+    [Fact]
     public void ValidatesChrome158ResourceWithoutChangingOlderRules()
     {
         var bytes = CreateInstallFlow();

@@ -68,15 +68,15 @@ public sealed class AutomaticDiscoveryIntegrationTests
         Assert.Equal(AutomaticGateLocator.Rule, automatic.Target!.RuleId);
         Assert.Equal(ChromeDebugLauncher.GetEdits(legacy.Target!), ChromeDebugLauncher.GetEdits(automatic.Target));
 
-        // Reverse CMP operands: equality is unchanged, but the V6/V12 byte
+        // Reverse CMP operands: equality is unchanged, but the V6/V12/V13 byte
         // signature is gone. Automatic discovery must still prove the same plan.
-        var firstStartupEdit = automatic.Target.AdditionalEdits[6].PatchRawOffset;
+        var lastStartupEdit = automatic.Target.AdditionalEdits[^1].PatchRawOffset;
         var branches = new List<Instruction>();
-        for (var p = firstStartupEdit - 6; p < firstStartupEdit; p++)
+        for (var p = lastStartupEdit - 6; p < lastStartupEdit; p++)
         {
             var decoder = Decoder.Create(64, new ByteArrayCodeReader(image.Bytes, p, 15)); decoder.IP = (ulong)p;
             decoder.Decode(out var i);
-            if (i.Mnemonic == Mnemonic.Jne && i.NextIP > (ulong)firstStartupEdit && i.NearBranchTarget > i.NextIP) branches.Add(i);
+            if (i.Mnemonic == Mnemonic.Jne && i.NextIP > (ulong)lastStartupEdit && i.NearBranchTarget > i.NextIP) branches.Add(i);
         }
         var startupEntry = Assert.Single(branches);
         var cmpRaw = (int)startupEntry.IP - 3;
@@ -97,11 +97,13 @@ public sealed class AutomaticDiscoveryIntegrationTests
         }
         finally { originalCompare.CopyTo(image.Bytes, cmpRaw); }
 
-        var installBranch = automatic.Target.AdditionalEdits[5].PatchRawOffset;
         var needle = new byte[] { 0xba }.Concat(BitConverter.GetBytes(anchor.ResourceId)).ToArray();
-        var matches = BytePattern.Parse(Convert.ToHexString(needle).Chunk(2).Select(x => new string(x)).Aggregate((a, b) => a + " " + b))
-            .FindAll(image.Bytes.AsSpan(installBranch, 4096));
-        var idOffset = installBranch + Assert.Single(matches) + 1;
+        var needlePattern = BytePattern.Parse(Convert.ToHexString(needle).Chunk(2).Select(x => new string(x)).Aggregate((a, b) => a + " " + b));
+        var installMatch = Assert.Single(
+            automatic.Target.AdditionalEdits
+                .Select(edit => (Offset: edit.PatchRawOffset, Matches: needlePattern.FindAll(image.Bytes.AsSpan(edit.PatchRawOffset, Math.Min(4096, image.Bytes.Length - edit.PatchRawOffset))))),
+            item => item.Matches.Count == 1);
+        var idOffset = installMatch.Offset + installMatch.Matches[0] + 1;
         var original = image.Bytes.AsSpan(idOffset, 4).ToArray();
         try
         {

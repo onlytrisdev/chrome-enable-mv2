@@ -21,7 +21,7 @@ internal sealed class AutomaticGateLocator
     }
     internal sealed record Layout(int Manifest, int Pointer, int Location, int Type, int Flag);
     private sealed record Gate(int Start, Instruction Compare, Instruction Branch, Register Root, Layout? Layout,
-        int? Function, bool Integer = false);
+        int? Function, bool Integer = false, bool HasBitset = false, Register? BitsetMaskRegister = null);
     private readonly record struct Input(int Manifest, int Type, int Location, byte Flag);
     private sealed record Outcome(string Kind, int Address, ulong?[] Registers, byte? ReturnByte = null);
     private static readonly int[] Classes = [int.MinValue, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, int.MaxValue];
@@ -53,7 +53,8 @@ internal sealed class AutomaticGateLocator
         try
         {
             var cmp = At(compareRaw); var branch = At(Next(cmp));
-            if (cmp.Mnemonic != Mnemonic.Cmp || !Imm(cmp, 1, 2) || branch.Mnemonic != Mnemonic.Jg) return false;
+            if (cmp.Mnemonic != Mnemonic.Cmp || !Imm(cmp, 1, 2) ||
+                (integer ? branch.Mnemonic != Mnemonic.Jg : branch.Mnemonic is not (Mnemonic.Jg or Mnemonic.Jle))) return false;
             var gate = integer ? IntegerGate(compareRaw, cmp, branch) : ObjectGate(compareRaw, cmp, branch);
             return gate is not null && (integer || Boundary(compareRaw)) && Prove(gate, null, null);
         }
@@ -80,6 +81,8 @@ internal sealed class AutomaticGateLocator
     private bool Inside(int p) => p >= text.RawOffset && (long)p < (long)text.RawOffset + text.RawSize;
     private static int Next(Instruction i) => checked((int)i.NextIP);
     private static int Target(Instruction i) => checked((int)i.NearBranchTarget);
+    private static int UnaffectedTarget(Instruction branch) => branch.Mnemonic == Mnemonic.Jg ? Target(branch) : Next(branch);
+    private static int CheckStart(Instruction branch) => branch.Mnemonic == Mnemonic.Jg ? Next(branch) : Target(branch);
     private static Register Full(Register r) => r.GetFullRegister();
     private Instruction NextMeaningful(ref int cursor)
     {
@@ -121,11 +124,24 @@ internal sealed class AutomaticGateLocator
         i.Mnemonic == Mnemonic.Mov && i.Op0Kind == OpKind.Register && Memory(i, 1, @base, size) &&
         i.Op0Register.GetSize() == size;
 
+    private (int Start, int End)? OwnerRange(int address)
+    {
+        var lo = 0; var hi = functions.Count - 1;
+        while (lo <= hi)
+        {
+            var mid = (lo + hi) / 2; var f = functions[mid];
+            if (address < f.Start) hi = mid - 1;
+            else if (address >= f.End) lo = mid + 1;
+            else return f;
+        }
+        return null;
+    }
+
     private Gate? ObjectGate(int address, Instruction cmp, Instruction branch)
     {
         if (cmp.Op0Kind != OpKind.Memory || cmp.MemorySize.GetSize() != 4 || cmp.MemoryIndex != Register.None ||
             cmp.MemoryBase.GetSize() != 8 || cmp.SegmentPrefix != Register.None) return null;
-        var root = cmp.MemoryBase; var p = Next(branch);
+        var root = cmp.MemoryBase; var p = CheckStart(branch);
         var pointer = NextMeaningful(ref p);
         if (!MoveMemory(pointer, root, 8)) return null;
         var location = NextMeaningful(ref p);
@@ -136,17 +152,54 @@ internal sealed class AutomaticGateLocator
         if (flagBranch.Mnemonic != Mnemonic.Jne) return null;
         var type = NextMeaningful(ref p);
         if (!MoveMemory(type, pointer.Op0Register, 4)) return null;
-        var typeCmp = NextMeaningful(ref p);
-        if (typeCmp.Mnemonic != Mnemonic.Cmp || typeCmp.Op0Register != type.Op0Register || !Imm(typeCmp, 1, 1)) return null;
-        var typeBranch = NextMeaningful(ref p);
-        if (typeBranch.Mnemonic != Mnemonic.Jne) return null;
+        var next = NextMeaningful(ref p);
+        if (next.Mnemonic == Mnemonic.Xor && next.Op0Kind == OpKind.Register && next.Op1Kind == OpKind.Register &&
+            next.Op0Register == next.Op1Register && next.Op0Register.GetSize() == 4 &&
+            Full(next.Op0Register) != Full(type.Op0Register) && Full(next.Op0Register) != Full(location.Op0Register))
+            next = NextMeaningful(ref p);
+        var hasBitset = false;
+        Register? hoistedMask = null;
+        var owner = OwnerRange(address);
+        if (next.Mnemonic == Mnemonic.Cmp && next.Op0Kind == OpKind.Register && next.Op0Register == type.Op0Register && Imm(next, 1, 1))
+        {
+            var typeBranch = NextMeaningful(ref p);
+            if (typeBranch.Mnemonic != Mnemonic.Jne) return null;
+        }
+        else if (next.Mnemonic == Mnemonic.Cmp && next.Op0Kind == OpKind.Register && next.Op0Register == type.Op0Register && Imm(next, 1, 8))
+        {
+            var ja = NextMeaningful(ref p);
+            if (ja.Mnemonic != Mnemonic.Ja || !Inside(Target(ja))) return null;
+            var maybeMask = NextMeaningful(ref p);
+            Instruction bit;
+            if (maybeMask.Mnemonic == Mnemonic.Mov && maybeMask.Op0Kind == OpKind.Register &&
+                maybeMask.Op0Register.GetSize() == 4 && Imm(maybeMask, 1, 0x10a))
+            {
+                bit = NextMeaningful(ref p);
+                if (bit.Mnemonic != Mnemonic.Bt || bit.Op0Kind != OpKind.Register || bit.Op1Kind != OpKind.Register ||
+                    bit.Op0Register != maybeMask.Op0Register || bit.Op1Register != type.Op0Register) return null;
+            }
+            else if (maybeMask.Mnemonic == Mnemonic.Bt && maybeMask.Op0Kind == OpKind.Register &&
+                     maybeMask.Op1Kind == OpKind.Register && maybeMask.Op0Register.GetSize() == 4 &&
+                     maybeMask.Op0Register != type.Op0Register && maybeMask.Op1Register == type.Op0Register)
+            {
+                if (owner is not { } range || !StartupLoopLocator.ProveConstantAt(image, range.Start, range.End, address, maybeMask.Op0Register, 0x10a))
+                    return null;
+                bit = maybeMask;
+                hoistedMask = maybeMask.Op0Register;
+            }
+            else return null;
+            var jae = NextMeaningful(ref p);
+            if (jae.Mnemonic != Mnemonic.Jae || Target(jae) != Target(ja)) return null;
+            hasBitset = true;
+        }
+        else return null;
         var layout = new Layout(checked((int)cmp.MemoryDisplacement64), checked((int)pointer.MemoryDisplacement64),
             checked((int)location.MemoryDisplacement64), checked((int)type.MemoryDisplacement64), checked((int)flag.MemoryDisplacement64));
         var fields = new[] { (layout.Manifest, 4), (layout.Pointer, 8), (layout.Flag, 1) };
         if (fields.Any(x => x.Item1 < 0 || x.Item1 > 65536) || layout.Location < 0 || layout.Type < 0 ||
             layout.Location > 65536 || layout.Type > 65536 || Math.Abs(layout.Location - layout.Type) < 4 ||
             fields.Any(a => fields.Any(b => a != b && a.Item1 < b.Item1 + b.Item2 && b.Item1 < a.Item1 + a.Item2))) return null;
-        return new(address, cmp, branch, root, layout, Owner(address));
+        return new(address, cmp, branch, root, layout, owner?.Start, false, hasBitset, hoistedMask);
     }
 
     private Gate? IntegerGate(int address, Instruction cmp, Instruction branch)
@@ -187,7 +240,7 @@ internal sealed class AutomaticGateLocator
                 var cmp = At(p);
                 if (cmp.Mnemonic != Mnemonic.Cmp || !Imm(cmp, 1, 2)) continue;
                 var branch = At(Next(cmp));
-                if (branch.Mnemonic != Mnemonic.Jg || !Inside(Target(branch))) continue;
+                if (branch.Mnemonic is not (Mnemonic.Jg or Mnemonic.Jle) || !Inside(Target(branch))) continue;
                 Gate? gate;
                 if (cmp.Op0Kind == OpKind.Memory)
                 {
@@ -196,7 +249,8 @@ internal sealed class AutomaticGateLocator
                     gate = ObjectGate(p, cmp, branch);
                     if (gate is null || !Boundary(p)) continue;
                 }
-                else gate = IntegerGate(p, cmp, branch);
+                else if (branch.Mnemonic == Mnemonic.Jg) gate = IntegerGate(p, cmp, branch);
+                else continue;
                 if (gate is not null) result.Add(gate);
             }
             catch (Exception error) when (error is InvalidDataException or ArgumentException or OverflowException) { continue; }
@@ -222,7 +276,16 @@ internal sealed class AutomaticGateLocator
             registers[RegIndex(Register.RCX)] = (uint)input.Manifest; registers[RegIndex(Register.RDX)] = (uint)input.Type; registers[RegIndex(Register.R8)] = (uint)input.Location;
             known[RegIndex(Register.RCX)] = known[RegIndex(Register.RDX)] = known[RegIndex(Register.R8)] = ulong.MaxValue;
         }
-        else { registers[RegIndex(gate.Root)] = 0x100000; known[RegIndex(gate.Root)] = ulong.MaxValue; }
+        else
+        {
+            registers[RegIndex(gate.Root)] = 0x100000;
+            known[RegIndex(gate.Root)] = ulong.MaxValue;
+            if (gate.BitsetMaskRegister is { } mask)
+            {
+                registers[RegIndex(mask)] = 0x10a;
+                known[RegIndex(mask)] = ulong.MaxValue;
+            }
+        }
         bool zero = false, greater = false, carry = false;
         var flagsKnown = false; var pc = gate.Start;
         ulong Mask(int size) => size == 8 ? ulong.MaxValue : (1UL << (size * 8)) - 1;
@@ -265,7 +328,7 @@ internal sealed class AutomaticGateLocator
             if (normals?.Contains(pc) == true) return Finish("normal", pc);
             if (Math.Abs((long)pc - gate.Start) > 4096) throw new InvalidDataException("Predicate graph exceeds its local bound.");
             var i = At(pc); var next = Next(i);
-            if (forceUnaffected && pc == (int)gate.Branch.IP) { pc = Target(gate.Branch); continue; }
+            if (forceUnaffected && pc == (int)gate.Branch.IP) { pc = UnaffectedTarget(gate.Branch); continue; }
             switch (i.Mnemonic)
             {
                 case Mnemonic.Nop: break;
@@ -292,7 +355,7 @@ internal sealed class AutomaticGateLocator
                     greater = size == 4 ? (int)a > (int)b : size == 1 ? (sbyte)a > (sbyte)b : (long)a > (long)b;
                     flagsKnown = true; break;
                 case Mnemonic.Bt:
-                    if (!gate.Integer) throw new InvalidDataException("Bit test outside the explicitly bounded integer predicate.");
+                    if (!gate.Integer && !gate.HasBitset) throw new InvalidDataException("Bit test outside the explicitly bounded predicate.");
                     var bits = i.Op0Register.GetSize() * 8;
                     carry = (Read(i, 0) & (1UL << (int)(Read(i, 1) % (uint)bits))) != 0;
                     flagsKnown = true; break;
@@ -310,9 +373,9 @@ internal sealed class AutomaticGateLocator
                 case Mnemonic.Jmp:
                     if (i.FlowControl != FlowControl.UnconditionalBranch) throw new InvalidDataException("Indirect predicate jump.");
                     next = Target(i); break;
-                case Mnemonic.Jg: case Mnemonic.Je: case Mnemonic.Jne: case Mnemonic.Ja: case Mnemonic.Jae:
+                case Mnemonic.Jg: case Mnemonic.Jle: case Mnemonic.Je: case Mnemonic.Jne: case Mnemonic.Ja: case Mnemonic.Jae:
                     if (!flagsKnown) throw new InvalidDataException("Unknown branch flags.");
-                    var take = i.Mnemonic switch { Mnemonic.Jg => greater, Mnemonic.Je => zero,
+                    var take = i.Mnemonic switch { Mnemonic.Jg => greater, Mnemonic.Jle => !greater, Mnemonic.Je => zero,
                         Mnemonic.Jne => !zero, Mnemonic.Ja => !carry && !zero, _ => !carry };
                     if (take) next = Target(i); break;
                 case Mnemonic.Ret: return Finish("return", pc);
@@ -345,7 +408,7 @@ internal sealed class AutomaticGateLocator
             else
             {
                 if (result.Kind != "normal") return false;
-                if (zeroAtJoin is { } reg && result.Address != Target(gate.Branch) && result.Registers[RegIndex(reg)] != 0) return false;
+                if (zeroAtJoin is { } reg && result.Address != UnaffectedTarget(gate.Branch) && result.Registers[RegIndex(reg)] != 0) return false;
             }
         }
         return true;
@@ -397,7 +460,7 @@ internal sealed class AutomaticGateLocator
 
     private bool InstallPaths(Gate gate, int error, int resource)
     {
-        var normal = Target(gate.Branch); var n = normal; var e = error;
+        var normal = UnaffectedTarget(gate.Branch); var n = normal; var e = error;
         var output = NextMeaningful(ref n);
         if (output.Mnemonic != Mnemonic.Lea || output.Op0Kind != OpKind.Register || output.MemoryBase != Register.RSP) return false;
         var context = NextMeaningful(ref n); var extension = NextMeaningful(ref n); var outputArg = NextMeaningful(ref n); var policy = NextMeaningful(ref n);
@@ -436,15 +499,24 @@ internal sealed class AutomaticGateLocator
         var startupAction = -1; var registrarFactory = -1; var extensionIdGetter = -1;
         foreach (var gate in objects)
         {
-            var target = Target(gate.Branch); var first = At(target);
+            var target = UnaffectedTarget(gate.Branch); var first = At(target);
             if (first.Mnemonic == Mnemonic.Xor && first.Op0Register == Register.EAX && first.Op1Register == Register.EAX)
             { if (!Prove(gate, null, null)) throw new InvalidDataException("Impact checker failed its predicate partitions."); pure.Add(gate); continue; }
             HashSet<int> normals = [target]; Register? zero = null;
             if (first.Mnemonic == Mnemonic.Xor && first.Op0Register == first.Op1Register && first.Op0Register.GetSize() == 4)
             {
-                var jump = At(Next(first));
-                if (jump.Mnemonic != Mnemonic.Jmp || !Inside(Target(jump))) throw new InvalidDataException("Invalid unaffected return join.");
-                normals.Add(Target(jump)); zero = first.Op0Register;
+                var afterZero = At(Next(first));
+                if (afterZero.Mnemonic == Mnemonic.Jmp)
+                {
+                    if (!Inside(Target(afterZero))) throw new InvalidDataException("Invalid unaffected return join.");
+                    normals.Add(Target(afterZero));
+                }
+                else if (gate.Branch.Mnemonic == Mnemonic.Jle)
+                {
+                    normals.Add(Next(first));
+                }
+                else throw new InvalidDataException("Invalid unaffected return join.");
+                zero = first.Op0Register;
             }
             var affected = Run(gate, new(2, 1, 0, 0), normals);
             if (affected.Kind != "action" || !Prove(gate, normals, affected.Address, zero))
@@ -468,7 +540,7 @@ internal sealed class AutomaticGateLocator
             throw new InvalidDataException("Incomplete semantic patch family.");
         var startupRange = functions.Single(f => f.Start == startupGate.Function);
         var startup = new StartupLoopLocator(image, new(startupRange.Start, startupRange.End, startupGate.Start,
-            Target(startupGate.Branch), startupAction, startupGate.Root, registrarFactory, extensionIdGetter)).Locate();
+            UnaffectedTarget(startupGate.Branch), startupAction, startupGate.Root, registrarFactory, extensionIdGetter)).Locate();
         pure.Sort((a, b) => a.Start.CompareTo(b.Start));
         var edits = new List<PatchEdit>();
         foreach (var gate in new[] { pure[0], pure[1], integers[0], disable, enable, install })
@@ -478,6 +550,15 @@ internal sealed class AutomaticGateLocator
                 edits.Add(new(address, image.RawOffsetToRva(address), 0x7f, 0xeb));
             else if (gate.Branch.Length == 6 && image.Bytes[address] == 0x0f && image.Bytes[address + 1] == 0x8f)
             { edits.Add(new(address, image.RawOffsetToRva(address), 0x0f, 0x90)); edits.Add(new(address + 1, image.RawOffsetToRva(address + 1), 0x8f, 0xe9)); }
+            else if (gate.Branch.Length == 2 && image.Bytes[address] == 0x7e && image.Bytes[address + 1] != 0)
+                edits.Add(new(address + 1, image.RawOffsetToRva(address + 1), image.Bytes[address + 1], 0x00));
+            else if (gate.Branch.Length == 6 && image.Bytes[address] == 0x0f && image.Bytes[address + 1] == 0x8e)
+            {
+                var added = false;
+                for (var k = 2; k < 6; k++)
+                    if (image.Bytes[address + k] != 0) { edits.Add(new(address + k, image.RawOffsetToRva(address + k), image.Bytes[address + k], 0x00)); added = true; }
+                if (!added) throw new InvalidDataException("Manifest-branch displacement is already zero.");
+            }
             else throw new InvalidDataException("Unsupported manifest-branch encoding.");
         }
         edits.AddRange(startup.Edits);

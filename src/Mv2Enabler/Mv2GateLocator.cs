@@ -39,6 +39,16 @@ internal static class Mv2GateLocator
     internal static bool TryLocateStartup(PeImage image, out int branch, out IReadOnlyList<string> evidence)
     {
         var text = image.GetSection(".text");
+        var matchesV13 = StartupDisableBranchV13Pattern.FindAll(image.Bytes.AsSpan(text.RawOffset, text.RawSize));
+        if (matchesV13.Count == 1)
+        {
+            branch = text.RawOffset + matchesV13[0] + 8;
+            if (TryValidateStartupDisableBranch(image.Bytes, text, branch, StartupDisableTargetV13Pattern, out evidence, out _))
+            {
+                return true;
+            }
+        }
+
         var matchesV12 = StartupDisableBranchV12Pattern.FindAll(image.Bytes.AsSpan(text.RawOffset, text.RawSize));
         if (matchesV12.Count == 1)
         {
@@ -110,6 +120,15 @@ internal static class Mv2GateLocator
     private static readonly BytePattern UserMayInstallV9ErrorPattern = BytePattern.Parse(
         "4C 8D B4 24 50 02 00 00 4C 89 F1 BA B9 1F 00 00 E8 ?? ?? ?? ?? " +
         "48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern SplitEntryV13Pattern = BytePattern.Parse("83 7A 50 02 7E ?? 31 C0 C3 48 8B 82 28 02 00 00 8B 48 50 80 BA 08 02 00 00 00 75 ?? 8B 90 88 00 00 00 31 C0 83 FA 08 77 ?? 41 B8 0A 01 00 00 41 0F A3 D0 73 ?? 83 F9 05 0F 95 C2 83 F9 0A 0F 95 C0 20 D0 EB ?? CC CC");
+    private static readonly BytePattern MustRemainDisabledV13Pattern = BytePattern.Parse("83 7F 50 02 7E ?? 31 FF 80 7C 24 37 00");
+    private static readonly BytePattern MustRemainDisabledV13BodyPattern = BytePattern.Parse("48 8B 8F 28 02 00 00 8B 41 50 80 BF 08 02 00 00 00 75 ?? 8B 89 88 00 00 00 31 FF 83 F9 08 77 ?? BA 0A 01 00 00 0F A3 CA 73 ?? 31 FF 83 F8 05 74 ?? 83 F8 0A 74 ?? B8 00 00 80 00");
+    private static readonly BytePattern ReEnableV13Pattern = BytePattern.Parse("83 7E 50 02 7E ?? 48 8B 7F 18 E8 ?? ?? ?? ?? 48 89 C1 48 89 FA 41 B0 01 E8");
+    private static readonly BytePattern ReEnableV13BodyPattern = BytePattern.Parse("48 8B 8E 28 02 00 00 8B 41 50 80 BE 08 02 00 00 00 75 ?? 8B 89 88 00 00 00 83 F9 08 77 ?? BA 0A 01 00 00 0F A3 CA 73 ?? 83 F8 0A 74 ?? 83 F8 05 74 ?? EB ??");
+    private static readonly BytePattern UserMayInstallV13Pattern = BytePattern.Parse("83 7F 50 02 0F 8E ?? ?? ?? ?? 4C 8D B4 24 50 02 00 00 48 89 D9 48 89 FA 4D 89 F0 E8 ?? ?? ?? ??");
+    private static readonly BytePattern UserMayInstallV13BodyPattern = BytePattern.Parse("48 8B 8F 28 02 00 00 8B 41 50 80 BF 08 02 00 00 00 75 ?? 8B 89 88 00 00 00 83 F9 08 0F 87 ?? ?? ?? ?? BA 0A 01 00 00 0F A3 CA 0F 83 ?? ?? ?? ?? 83 F8 05 0F 84 ?? ?? ?? ?? 83 F8 0A 0F 84 ?? ?? ?? ?? 4C 8D B4 24 50 02 00 00 4C 89 F1 BA F9 1A 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
+    private static readonly BytePattern StartupDisableBranchV13Pattern = BytePattern.Parse("48 8B 6C 24 40 4C 39 FD 0F 85 ?? ?? ?? ?? 48 8B 4C 24 48 E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 48 8B 56 18");
+    private static readonly BytePattern StartupDisableTargetV13Pattern = BytePattern.Parse("BB 01 00 00 00 4C 8D 74 24 38 4D 89 FC B9 04 00 00 00 48 BA ?? ?? ?? ?? ?? ?? ?? ?? 49 89 C7 E8 ?? ?? ?? ?? 48 89 44 24 20 48 89 5C 24 30 C7 00 00 00 80 00");
     private static readonly BytePattern UserMayInstallV12ErrorPattern = BytePattern.Parse("4C 8D B4 24 50 02 00 00 4C 89 F1 BA 6E 20 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV11ErrorPattern = BytePattern.Parse("4C 8D B4 24 50 02 00 00 4C 89 F1 BA C2 1F 00 00 E8 ?? ?? ?? ?? 48 8D 4C 24 60 C6 41 F8 00 48 8D 5C 24 58 E9 ?? ?? ?? ??");
     private static readonly BytePattern UserMayInstallV10ErrorPattern = BytePattern.Parse(
@@ -275,6 +294,12 @@ internal static class Mv2GateLocator
     private static LocatorResult LocateSplit(PeImage image, PeSection text, ReadOnlySpan<byte> sectionBytes)
     {
         var diagnostics = new List<string>();
+        var splitEntryV13Matches = SplitEntryV13Pattern.FindAll(sectionBytes);
+        if (splitEntryV13Matches.Count > 0)
+        {
+            return LocateSplitV13(image, text, sectionBytes, splitEntryV13Matches);
+        }
+
         var splitEntryV7Matches = SplitEntryV7Pattern.FindAll(sectionBytes);
         var isV7 = splitEntryV7Matches.Count == 2;
         var relativeMatches = isV7 ? splitEntryV7Matches : SplitEntryPattern.FindAll(sectionBytes);
@@ -815,6 +840,289 @@ internal static class Mv2GateLocator
         out IReadOnlyList<string> evidence, out string reason)
         => TryValidateInstallPolicyFlow(bytes, section, rawOffset, UserMayInstallV10ErrorPattern,
             "Chrome 156 stable", 8122, out evidence, out reason);
+
+    private static LocatorResult LocateSplitV13(PeImage image, PeSection text, ReadOnlySpan<byte> sectionBytes, IReadOnlyList<int> relativeMatches)
+    {
+        var diagnostics = new List<string>();
+        var valid = new List<(int RawOffset, IReadOnlyList<string> Evidence)>();
+        foreach (var relative in relativeMatches)
+        {
+            var rawOffset = text.RawOffset + relative;
+            if (TryValidateSplitV13(image.Bytes, text, rawOffset, out var evidence, out var reason))
+            {
+                valid.Add((rawOffset, evidence));
+            }
+            else
+            {
+                diagnostics.Add($"Rejected Chrome 159 split candidate 0x{rawOffset:X}: {reason}");
+            }
+        }
+
+        if (relativeMatches.Count != 2 || valid.Count != 2)
+        {
+            diagnostics.Add($"Fail-closed: expected exactly two semantic copies of the Chrome 159 split MV2 impact checker; found {relativeMatches.Count} pattern matches and {valid.Count} valid copies.");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        valid.Sort((left, right) => left.RawOffset.CompareTo(right.RawOffset));
+        var primary = valid[0];
+        var secondary = valid[1];
+        var patchRawOffset = primary.RawOffset + 5;
+        var secondaryPatchRawOffset = secondary.RawOffset + 5;
+        var current = image.Bytes[patchRawOffset];
+        var secondaryCurrent = image.Bytes[secondaryPatchRawOffset];
+
+        var integerMatches = SplitIntegerEntryPattern.FindAll(sectionBytes);
+        if (integerMatches.Count != 1)
+        {
+            diagnostics.Add($"Fail-closed: expected exactly one split integer-argument MV2 impact checker; found {integerMatches.Count}.");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var integerRawOffset = text.RawOffset + integerMatches[0];
+        if (!TryValidateSplitInteger(image.Bytes, text, integerRawOffset, out var integerEvidence, out var integerReason))
+        {
+            diagnostics.Add($"Rejected integer-argument checker: {integerReason}");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var integerPatchRawOffset = integerRawOffset + 5;
+        var integerCurrent = image.Bytes[integerPatchRawOffset];
+
+        var mustRemainDisabledMatches = MustRemainDisabledV13Pattern.FindAll(sectionBytes);
+        var reEnableMatches = ReEnableV13Pattern.FindAll(sectionBytes);
+        var userMayInstallMatches = UserMayInstallV13Pattern.FindAll(sectionBytes);
+        if (mustRemainDisabledMatches.Count != 1 || reEnableMatches.Count != 1 || userMayInstallMatches.Count != 1)
+        {
+            diagnostics.Add($"Fail-closed: expected one Chrome 159 MustRemainDisabled clone, one re-enable clone, and one UserMayInstall clone; found {mustRemainDisabledMatches.Count}, {reEnableMatches.Count}, and {userMayInstallMatches.Count}.");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var mustRemainRawOffset = text.RawOffset + mustRemainDisabledMatches[0];
+        var reEnableRawOffset = text.RawOffset + reEnableMatches[0];
+        var userMayInstallRawOffset = text.RawOffset + userMayInstallMatches[0];
+
+        if (!TryValidateMustRemainDisabledV13(image.Bytes, text, mustRemainRawOffset, out var mustRemainEvidence, out var mustRemainReason))
+        {
+            diagnostics.Add($"Rejected MustRemainDisabled clone: {mustRemainReason}");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        if (!TryValidateReEnableV13(image.Bytes, text, reEnableRawOffset, out var reEnableEvidence, out var reEnableReason))
+        {
+            diagnostics.Add($"Rejected re-enable clone: {reEnableReason}");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        if (!TryValidateUserMayInstallV13(image.Bytes, text, userMayInstallRawOffset, out var userMayInstallEvidence, out var userMayInstallReason))
+        {
+            diagnostics.Add($"Rejected UserMayInstall clone: {userMayInstallReason}");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var startupMatches = StartupDisableBranchV13Pattern.FindAll(sectionBytes);
+        if (startupMatches.Count != 1)
+        {
+            diagnostics.Add($"Fail-closed: expected exactly one startup-disable branch for the Chrome 159 checker pair; found {startupMatches.Count}.");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var startupBranchRawOffset = text.RawOffset + startupMatches[0] + 8;
+        if (!TryValidateStartupDisableBranch(image.Bytes, text, startupBranchRawOffset, StartupDisableTargetV13Pattern, out var startupEvidence, out var startupReason))
+        {
+            diagnostics.Add($"Rejected startup-disable branch: {startupReason}");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var additionalEdits = new List<PatchEdit>
+        {
+            new(secondaryPatchRawOffset, image.RawOffsetToRva(secondaryPatchRawOffset), secondaryCurrent, 0x00),
+            new(integerPatchRawOffset, image.RawOffsetToRva(integerPatchRawOffset), integerCurrent, 0xeb),
+            new(mustRemainRawOffset + 5, image.RawOffsetToRva(mustRemainRawOffset + 5), image.Bytes[mustRemainRawOffset + 5], 0x00),
+            new(reEnableRawOffset + 5, image.RawOffsetToRva(reEnableRawOffset + 5), image.Bytes[reEnableRawOffset + 5], 0x00)
+        };
+        for (var index = 0; index < sizeof(int); index++)
+        {
+            var displacementRawOffset = userMayInstallRawOffset + 6 + index;
+            if (image.Bytes[displacementRawOffset] != 0)
+            {
+                additionalEdits.Add(new PatchEdit(displacementRawOffset, image.RawOffsetToRva(displacementRawOffset), image.Bytes[displacementRawOffset], 0x00));
+            }
+        }
+        for (var index = 0; index < sizeof(int); index++)
+        {
+            var displacementRawOffset = startupBranchRawOffset + 2 + index;
+            if (image.Bytes[displacementRawOffset] != 0)
+            {
+                additionalEdits.Add(new PatchEdit(displacementRawOffset, image.RawOffsetToRva(displacementRawOffset), image.Bytes[displacementRawOffset], 0x00));
+            }
+        }
+
+        var allOriginal = current == 0x03 && additionalEdits.All(edit => edit.ExpectedByte != edit.ReplacementByte);
+        if (!allOriginal)
+        {
+            diagnostics.Add("Fail-closed: Chrome 159 MV2 checker copies have inconsistent or unexpected patch state.");
+            return new LocatorResult(false, null, relativeMatches.Count, valid.Count, diagnostics);
+        }
+
+        var target = new PatchTarget(
+            "chromium.mv2-impact-checker.split-extension-copies.return-unaffected.v13",
+            "Force both Chrome 159 MV2 impact-checker copies to take the unaffected path and neutralize the verified startup disable branch.",
+            primary.RawOffset,
+            patchRawOffset,
+            image.RawOffsetToRva(patchRawOffset),
+            current,
+            0x00,
+            PatchState.Original,
+            additionalEdits,
+            [
+                .. primary.Evidence,
+                $"second byte-identical checker copy validated at raw offset 0x{secondary.RawOffset:X}",
+                .. integerEvidence,
+                .. mustRemainEvidence,
+                .. reEnableEvidence,
+                .. userMayInstallEvidence,
+                .. startupEvidence
+            ]);
+
+        diagnostics.Add("Exactly two Chrome 159 checker copies passed all semantic checks and were grouped into one atomic patch set.");
+        return new LocatorResult(true, target, relativeMatches.Count, valid.Count, diagnostics);
+    }
+
+    private static bool TryValidateSplitV13(byte[] bytes, PeSection section, int rawOffset, out IReadOnlyList<string> evidence, out string reason)
+    {
+        evidence = [];
+        reason = string.Empty;
+        if (bytes[rawOffset + 4] != 0x7e || bytes[rawOffset + 5] != 0x03)
+        {
+            reason = "expected short JLE +3 skipping the return-false block";
+            return false;
+        }
+        var retOffset = rawOffset + 8;
+        if (rawOffset + 41 + unchecked((sbyte)bytes[rawOffset + 40]) != retOffset ||
+            rawOffset + 53 + unchecked((sbyte)bytes[rawOffset + 52]) != retOffset ||
+            rawOffset + 69 + unchecked((sbyte)bytes[rawOffset + 68]) != retOffset)
+        {
+            reason = "Chrome 159 checker branches do not converge on the shared RET";
+            return false;
+        }
+        evidence = [
+            "Chrome 159 checker reads Extension.manifest_version and uses inverted JLE over the return-false path",
+            "Chrome 159 checker validates manifest types 1, 3, and 8 via bit mask 0x10A and excludes component locations 5 and 10",
+            $"shared RET validated at raw offset 0x{retOffset:X}"
+        ];
+        return true;
+    }
+
+    private static bool TryValidateMustRemainDisabledV13(byte[] bytes, PeSection section, int rawOffset, out IReadOnlyList<string> evidence, out string reason)
+    {
+        evidence = [];
+        reason = string.Empty;
+        var sectionEnd = (long)section.RawOffset + section.RawSize;
+        var disp = unchecked((sbyte)bytes[rawOffset + 5]);
+        var body = rawOffset + 6 + disp;
+        var join = rawOffset + 8;
+        if (disp <= 0 || body < section.RawOffset || body + MustRemainDisabledV13BodyPattern.Length > sectionEnd ||
+            !MustRemainDisabledV13BodyPattern.MatchesAt(bytes, body))
+        {
+            reason = "MustRemainDisabled JLE target does not match the verified Chrome 159 bitset body";
+            return false;
+        }
+        if (body + 19 + unchecked((sbyte)bytes[body + 18]) != body + 42 ||
+            body + 32 + unchecked((sbyte)bytes[body + 31]) != join ||
+            body + 42 + unchecked((sbyte)bytes[body + 41]) != join ||
+            body + 49 + unchecked((sbyte)bytes[body + 48]) != join ||
+            body + 54 + unchecked((sbyte)bytes[body + 53]) != join)
+        {
+            reason = "MustRemainDisabled unaffected branches do not converge on the verified join";
+            return false;
+        }
+        evidence = [
+            "Chrome 159 MustRemainDisabled clone constructs disable reason 0x800000 only on the affected path",
+            $"unaffected join validated at raw offset 0x{join:X}"
+        ];
+        return true;
+    }
+
+    private static bool TryValidateReEnableV13(byte[] bytes, PeSection section, int rawOffset, out IReadOnlyList<string> evidence, out string reason)
+    {
+        evidence = [];
+        reason = string.Empty;
+        var sectionEnd = (long)section.RawOffset + section.RawSize;
+        var disp = unchecked((sbyte)bytes[rawOffset + 5]);
+        var normal = rawOffset + 6;
+        var body = normal + disp;
+        if (disp <= 0 || body < section.RawOffset || body + ReEnableV13BodyPattern.Length > sectionEnd ||
+            !ReEnableV13BodyPattern.MatchesAt(bytes, body))
+        {
+            reason = "ReEnable JLE target does not match the verified Chrome 159 bitset body";
+            return false;
+        }
+        var epilogue = body + 52 + unchecked((sbyte)bytes[body + 51]);
+        if (body + 19 + unchecked((sbyte)bytes[body + 18]) != body + 40 ||
+            body + 30 + unchecked((sbyte)bytes[body + 29]) != normal ||
+            body + 40 + unchecked((sbyte)bytes[body + 39]) != normal ||
+            body + 45 + unchecked((sbyte)bytes[body + 44]) != normal ||
+            body + 50 + unchecked((sbyte)bytes[body + 49]) != normal ||
+            epilogue < section.RawOffset || epilogue + 8 > sectionEnd ||
+            !bytes.AsSpan(epilogue, 8).SequenceEqual((ReadOnlySpan<byte>)[0x48, 0x83, 0xC4, 0x20, 0x5B, 0x5F, 0x5E, 0xC3]))
+        {
+            reason = "ReEnable unaffected branches or epilogue do not match the verified Chrome 159 control flow";
+            return false;
+        }
+        evidence = [
+            "Chrome 159 re-enable clone verifies disable reason 0x800000 and repeats the MV2 bitset/location checks",
+            $"re-enable manifest-version fallthrough reaches disable-reason removal at raw offset 0x{normal:X}"
+        ];
+        return true;
+    }
+
+    internal static bool TryValidateUserMayInstallV13(byte[] bytes, PeSection section, int rawOffset, out IReadOnlyList<string> evidence, out string reason)
+    {
+        evidence = [];
+        reason = "Chrome 159 UserMayInstall control flow did not match.";
+        var sectionEnd = (long)section.RawOffset + section.RawSize;
+        bool InSection(long offset, int length) => offset >= section.RawOffset && offset + length <= sectionEnd && offset + length <= bytes.Length;
+        long NearTarget(int offset, int instructionLength) => (long)offset + instructionLength + BitConverter.ToInt32(bytes, offset + instructionLength - 4);
+
+        if (!InSection(rawOffset, UserMayInstallV13Pattern.Length) || !UserMayInstallV13Pattern.MatchesAt(bytes, rawOffset))
+        {
+            return false;
+        }
+
+        var normalPath = rawOffset + 10;
+        var body = NearTarget(rawOffset + 4, 6);
+        if (body <= normalPath || !InSection(body, UserMayInstallV13BodyPattern.Length) || !UserMayInstallV13BodyPattern.MatchesAt(bytes, (int)body))
+        {
+            reason = "affected path does not reach the verified Chrome 159 unsupported-manifest error resource 6905";
+            return false;
+        }
+
+        var b = (int)body;
+        var normalCallTarget = NearTarget(rawOffset + 27, 5);
+        var errorCallTarget = NearTarget(b + 82, 5);
+        var sharedCallback = NearTarget(b + 101, 5);
+        if (b + 19 + unchecked((sbyte)bytes[b + 18]) != b + 48 ||
+            NearTarget(b + 28, 6) != normalPath ||
+            NearTarget(b + 42, 6) != normalPath ||
+            NearTarget(b + 51, 6) != normalPath ||
+            NearTarget(b + 60, 6) != normalPath ||
+            !InSection(normalCallTarget, 1) || !InSection(errorCallTarget, 1) ||
+            sharedCallback != rawOffset + 45 || !InSection(sharedCallback, 5) ||
+            !bytes.AsSpan((int)sharedCallback, 5).SequenceEqual((ReadOnlySpan<byte>)[0x41, 0x80, 0x7E, 0x17, 0x00]))
+        {
+            reason = "Chrome 159 UserMayInstall branches or shared callback leave the verified control flow";
+            return false;
+        }
+
+        evidence = [
+            "Chrome 159 UserMayInstall manifest/type/location branches converge on the normal UserMayLoad policy call",
+            "affected path constructs unsupported-manifest error resource 6905 and rejoins the shared callback",
+            $"manifest-version fallthrough reaches the normal policy path at raw offset 0x{normalPath:X}"
+        ];
+        reason = string.Empty;
+        return true;
+    }
 
     internal static bool TryValidateUserMayInstallV12(byte[] bytes, PeSection section, int rawOffset,
         out IReadOnlyList<string> evidence, out string reason)
